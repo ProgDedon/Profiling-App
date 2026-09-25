@@ -1,0 +1,6 @@
+{
+  "name": "Dossier PDF",
+  "description": "Create and export professional profile dossiers and info sheets in high-resolution PDF matching custom template formats.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
