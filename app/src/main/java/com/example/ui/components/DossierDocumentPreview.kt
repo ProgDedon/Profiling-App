@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -27,7 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -102,7 +100,7 @@ fun DossierDocumentPreview(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = profile.fullName.ifBlank { "FULL NAME" }.uppercase(),
+                        text = profile.fullName.ifBlank { "PROFILE DOSSIER" }.uppercase(),
                         color = Color.White,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
@@ -192,23 +190,25 @@ fun DossierDocumentPreview(
                             )
                         }
 
-                        // Phone number under photo
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White)
-                                .border(0.5.dp, borderColor)
-                                .padding(vertical = 4.dp, horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = profile.displayPhotoNumber.ifBlank { profile.phoneNumber.ifBlank { "—" } },
-                                color = Color(0xFF1E293B),
-                                fontSize = 9.sp,
-                                fontFamily = FontFamily.SansSerif,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1
-                            )
+                        // Phone number under photo (ONLY IF NOT BLANK!)
+                        if (profile.displayPhotoNumber.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White)
+                                    .border(0.5.dp, borderColor)
+                                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = profile.displayPhotoNumber,
+                                    color = Color(0xFF1E293B),
+                                    fontSize = 9.sp,
+                                    fontFamily = FontFamily.SansSerif,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
 
@@ -218,99 +218,114 @@ fun DossierDocumentPreview(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // SECTION 1: PERSONAL & CONTACT INFORMATION
-                        SectionTable(
-                            headerTitle = "PERSONAL & CONTACT INFORMATION",
-                            headerColor = headerColor,
-                            borderColor = borderColor
-                        ) {
-                            // Row 1: Gender & LGA/State
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(IntrinsicSize.Min)
-                            ) {
-                                Cell(text = "Gender:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = profile.gender.ifBlank { "—" }, isLabel = false, weight = 0.28f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = "LGA/State:", isLabel = true, weight = 0.24f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = profile.lgaState.ifBlank { "—" }, isLabel = false, weight = 0.26f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                            }
-                            // Row 2: Phone Number & Also Known As
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(IntrinsicSize.Min)
-                            ) {
-                                Cell(text = "Phone Number:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = profile.phoneNumber.ifBlank { "—" }, isLabel = false, weight = 0.28f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = "Also Known As", isLabel = true, weight = 0.24f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = profile.alsoKnownAs.ifBlank { "—" }, isLabel = false, weight = 0.26f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                            }
-                            // Row 3: Date of Birth
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(IntrinsicSize.Min)
-                            ) {
-                                Cell(text = "Date of Birth", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = profile.dateOfBirth.ifBlank { "—" }, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                            }
-                        }
+                        val hasGender = profile.gender.isNotBlank()
+                        val hasLga = profile.lgaState.isNotBlank()
+                        val hasPhone = profile.phoneNumber.isNotBlank()
+                        val hasAka = profile.alsoKnownAs.isNotBlank()
+                        val hasDob = profile.dateOfBirth.isNotBlank()
 
-                        // SECTION 2: SOCIAL MEDIA
-                        SectionTable(
-                            headerTitle = "SOCIAL MEDIA",
-                            headerColor = headerColor,
-                            borderColor = borderColor
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(IntrinsicSize.Min)
+                        if (hasGender || hasLga || hasPhone || hasAka || hasDob) {
+                            SectionTable(
+                                headerTitle = "PERSONAL & CONTACT INFORMATION",
+                                headerColor = headerColor,
+                                borderColor = borderColor
                             ) {
-                                Cell(text = "Facebook", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = profile.facebook.ifBlank { "—" }, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                            }
-                            if (profile.otherSocialMedia.isNotBlank()) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(IntrinsicSize.Min)
-                                ) {
-                                    Cell(text = "Other", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    Cell(text = profile.otherSocialMedia, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                // Row 1: Gender / LGA
+                                if (hasGender && hasLga) {
+                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                        Cell(text = "Gender:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = profile.gender, isLabel = false, weight = 0.28f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = "LGA/State:", isLabel = true, weight = 0.24f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = profile.lgaState, isLabel = false, weight = 0.26f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                    }
+                                } else if (hasGender) {
+                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                        Cell(text = "Gender:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = profile.gender, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                    }
+                                } else if (hasLga) {
+                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                        Cell(text = "LGA/State:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = profile.lgaState, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                    }
+                                }
+
+                                // Row 2: Phone / AKA
+                                if (hasPhone && hasAka) {
+                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                        Cell(text = "Phone Number:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = profile.phoneNumber, isLabel = false, weight = 0.28f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = "Also Known As", isLabel = true, weight = 0.24f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = profile.alsoKnownAs, isLabel = false, weight = 0.26f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                    }
+                                } else if (hasPhone) {
+                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                        Cell(text = "Phone Number:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = profile.phoneNumber, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                    }
+                                } else if (hasAka) {
+                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                        Cell(text = "Also Known As", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = profile.alsoKnownAs, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                    }
+                                }
+
+                                // Row 3: Date of Birth
+                                if (hasDob) {
+                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                        Cell(text = "Date of Birth", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = profile.dateOfBirth, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                    }
                                 }
                             }
                         }
 
-                        // SECTION 3: OTHER INFORMATION
-                        SectionTable(
-                            headerTitle = "OTHER INFORMATION",
-                            headerColor = headerColor,
-                            borderColor = borderColor
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(IntrinsicSize.Min)
+                        // SECTION 2: SOCIAL MEDIA
+                        val socialEntries = mutableListOf<Pair<String, String>>()
+                        if (profile.facebook.isNotBlank()) socialEntries.add("Facebook" to profile.facebook)
+                        if (profile.twitter.isNotBlank()) socialEntries.add("Twitter / X" to profile.twitter)
+                        if (profile.instagram.isNotBlank()) socialEntries.add("Instagram" to profile.instagram)
+                        if (profile.youtube.isNotBlank()) socialEntries.add("YouTube" to profile.youtube)
+                        if (profile.otherSocialMedia.isNotBlank()) socialEntries.add("Other Social" to profile.otherSocialMedia)
+
+                        if (socialEntries.isNotEmpty()) {
+                            SectionTable(
+                                headerTitle = "SOCIAL MEDIA",
+                                headerColor = headerColor,
+                                borderColor = borderColor
                             ) {
-                                Cell(text = "Occupation", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = profile.occupation.ifBlank { "—" }, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                socialEntries.forEach { (platform, handle) ->
+                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                        Cell(text = platform, isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = handle, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                    }
+                                }
                             }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(IntrinsicSize.Min)
+                        }
+
+                        // SECTION 3: OTHER INFORMATION & CUSTOM FIELDS
+                        val otherEntries = mutableListOf<Pair<String, String>>()
+                        if (profile.occupation.isNotBlank()) otherEntries.add("Occupation" to profile.occupation)
+                        if (profile.education.isNotBlank()) otherEntries.add("Education" to profile.education)
+                        if (profile.associatesPhoneNumbers.isNotBlank()) otherEntries.add("Associates Phone\nNumbers" to profile.associatesPhoneNumbers)
+
+                        val customFields = profile.getCustomFields().filter { it.label.isNotBlank() && it.value.isNotBlank() }
+                        for (cf in customFields) {
+                            otherEntries.add(cf.label to cf.value)
+                        }
+
+                        if (otherEntries.isNotEmpty()) {
+                            SectionTable(
+                                headerTitle = "OTHER INFORMATION",
+                                headerColor = headerColor,
+                                borderColor = borderColor
                             ) {
-                                Cell(text = "Education", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = profile.education.ifBlank { "—" }, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(IntrinsicSize.Min)
-                            ) {
-                                Cell(text = "Associates Phone\nNumbers", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                Cell(text = profile.associatesPhoneNumbers.ifBlank { "—" }, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                otherEntries.forEach { (label, value) ->
+                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                        Cell(text = label, isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                        Cell(text = value, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                                    }
+                                }
                             }
                         }
                     }
@@ -366,7 +381,7 @@ private fun RowScope.Cell(
             .fillMaxHeight()
             .border(0.5.dp, borderColor)
             .background(Color.White)
-            .padding(horizontal = 4.dp, vertical = 3.dp),
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Text(

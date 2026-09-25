@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Dossier PDF"
+rootProject.name = "greymmc"
 
 include(":app")

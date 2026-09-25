@@ -23,7 +23,7 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
     private val repository: DossierRepository
     val savedProfiles: StateFlow<List<DossierProfile>>
 
-    private val _currentProfile = MutableStateFlow(DossierProfile.createSample())
+    private val _currentProfile = MutableStateFlow(DossierProfile.createEmpty())
     val currentProfile: StateFlow<DossierProfile> = _currentProfile.asStateFlow()
 
     private val _isGeneratingPdf = MutableStateFlow(false)
@@ -43,13 +43,6 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
-
-        // Seed initial sample profile if DB is empty
-        viewModelScope.launch {
-            if (repository.getCount() == 0) {
-                repository.insertProfile(DossierProfile.createSample())
-            }
-        }
     }
 
     fun clearStatusMessage() {
@@ -67,6 +60,9 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
     fun updateAlsoKnownAs(value: String) = updateProfile { it.copy(alsoKnownAs = value) }
     fun updateDateOfBirth(value: String) = updateProfile { it.copy(dateOfBirth = value) }
     fun updateFacebook(value: String) = updateProfile { it.copy(facebook = value) }
+    fun updateTwitter(value: String) = updateProfile { it.copy(twitter = value) }
+    fun updateInstagram(value: String) = updateProfile { it.copy(instagram = value) }
+    fun updateYoutube(value: String) = updateProfile { it.copy(youtube = value) }
     fun updateOtherSocial(value: String) = updateProfile { it.copy(otherSocialMedia = value) }
     fun updateOccupation(value: String) = updateProfile { it.copy(occupation = value) }
     fun updateEducation(value: String) = updateProfile { it.copy(education = value) }
@@ -74,6 +70,24 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
     fun updatePhotoDisplayNumber(value: String) = updateProfile { it.copy(photoDisplayNumber = value) }
     fun updateWatermarkText(value: String) = updateProfile { it.copy(watermarkText = value) }
     fun updateHeaderColor(hex: String) = updateProfile { it.copy(headerColorHex = hex) }
+
+    fun addCustomField(label: String = "", value: String = "") {
+        val currentFields = _currentProfile.value.getCustomFields().toMutableList()
+        currentFields.add(com.example.data.model.CustomField(label = label, value = value))
+        _currentProfile.value = _currentProfile.value.withCustomFields(currentFields)
+    }
+
+    fun updateCustomField(id: String, label: String, value: String) {
+        val currentFields = _currentProfile.value.getCustomFields().map { field ->
+            if (field.id == id) field.copy(label = label, value = value) else field
+        }
+        _currentProfile.value = _currentProfile.value.withCustomFields(currentFields)
+    }
+
+    fun removeCustomField(id: String) {
+        val currentFields = _currentProfile.value.getCustomFields().filter { it.id != id }
+        _currentProfile.value = _currentProfile.value.withCustomFields(currentFields)
+    }
 
     fun setPhotoFromUri(context: Context, uri: Uri) {
         viewModelScope.launch {
@@ -86,31 +100,38 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun setPhotoFromPath(path: String) {
+        updateProfile { it.copy(photoUri = path) }
+        _statusMessage.value = "Photo captured successfully!"
+    }
+
     fun removePhoto() {
         updateProfile { it.copy(photoUri = null) }
     }
 
-    fun loadSampleData() {
-        _currentProfile.value = DossierProfile.createSample()
-        _statusMessage.value = "Sample data from template loaded!"
+    fun setFormImageFromUri(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            val localPath = ImageUtils.saveImageLocally(context, uri)
+            if (localPath != null) {
+                updateProfile { it.copy(formImageUri = localPath) }
+                _statusMessage.value = "Form image uploaded successfully!"
+            } else {
+                _statusMessage.value = "Failed to upload form image"
+            }
+        }
+    }
+
+    fun setFormImageFromPath(path: String) {
+        updateProfile { it.copy(formImageUri = path) }
+        _statusMessage.value = "Form image captured successfully!"
+    }
+
+    fun removeFormImage() {
+        updateProfile { it.copy(formImageUri = null) }
     }
 
     fun resetForm() {
-        _currentProfile.value = DossierProfile(
-            fullName = "",
-            gender = "Male",
-            lgaState = "",
-            phoneNumber = "",
-            alsoKnownAs = "",
-            dateOfBirth = "",
-            facebook = "",
-            otherSocialMedia = "",
-            occupation = "",
-            education = "",
-            associatesPhoneNumbers = "",
-            watermarkText = "NS",
-            headerColorHex = "#102E56"
-        )
+        _currentProfile.value = DossierProfile.createEmpty()
     }
 
     fun selectProfile(profile: DossierProfile) {

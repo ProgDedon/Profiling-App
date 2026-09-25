@@ -23,7 +23,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import java.io.OutputStream
 
 object PdfGenerator {
 
@@ -93,7 +92,7 @@ object PdfGenerator {
         width: Float,
         height: Float
     ) {
-        // Background - Pure White
+        // Pure White Background
         canvas.drawColor(Color.WHITE)
 
         val headerColor = try {
@@ -105,20 +104,22 @@ object PdfGenerator {
         val borderColor = Color.parseColor("#CBD5E1")
         val labelColor = Color.parseColor("#0F172A")
         val valueColor = Color.parseColor("#1E293B")
-        val watermarkColor = Color.parseColor("#0F000000") // 6% black
+        val watermarkColor = Color.parseColor("#0F000000") // subtle 6% black
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
 
         // 1. Watermark in background
-        drawWatermark(canvas, width, height, profile.watermarkText, watermarkColor)
+        if (profile.watermarkText.isNotBlank()) {
+            drawWatermark(canvas, width, height, profile.watermarkText, watermarkColor)
+        }
 
         // Margins
         val marginX = 36f
         val marginTop = 26f
         val contentWidth = width - (marginX * 2)
 
-        // 2. Top Banner
+        // 2. Top Header Banner
         val bannerHeight = 40f
         paint.color = headerColor
         paint.style = Paint.Style.FILL
@@ -129,7 +130,7 @@ object PdfGenerator {
         paint.typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
         paint.textSize = 17f
         paint.textAlign = Paint.Align.CENTER
-        val bannerText = profile.fullName.ifBlank { "FULL NAME" }.uppercase()
+        val bannerText = profile.fullName.ifBlank { "PROFILE DOSSIER" }.uppercase()
         val textY = marginTop + (bannerHeight / 2f) - ((paint.descent() + paint.ascent()) / 2f)
         canvas.drawText(bannerText, width / 2f, textY, paint)
 
@@ -145,9 +146,10 @@ object PdfGenerator {
         val photoCardTop = startY
         val photoPadding = 10f
         val photoWidth = leftCardWidth - (photoPadding * 2)
-        val photoHeight = 250f
+        val photoHeight = 240f
         val badgeHeight = 28f
-        val phoneBoxHeight = 26f
+        val hasPhoneUnderPhoto = profile.displayPhotoNumber.isNotBlank()
+        val phoneBoxHeight = if (hasPhoneUnderPhoto) 26f else 0f
         val totalCardHeight = photoPadding + photoHeight + badgeHeight + phoneBoxHeight
 
         // Left Card Outer Frame
@@ -161,7 +163,7 @@ object PdfGenerator {
         paint.strokeWidth = 1f
         canvas.drawRect(photoCardLeft, photoCardTop, photoCardLeft + leftCardWidth, photoCardTop + totalCardHeight, paint)
 
-        // Photo Canvas Area
+        // Photo Area
         val photoRect = RectF(
             photoCardLeft + photoPadding,
             photoCardTop + photoPadding,
@@ -169,12 +171,11 @@ object PdfGenerator {
             photoCardTop + photoPadding + photoHeight
         )
 
-        // Draw profile photo or styled placeholder
         val photoBitmap = loadBitmap(context, profile.photoUri, (photoWidth * 2).toInt(), (photoHeight * 2).toInt())
         if (photoBitmap != null) {
             drawCenterCropBitmap(canvas, photoBitmap, photoRect)
         } else {
-            // Draw placeholder avatar with soft gradient and initials
+            // Placeholder box with initials
             paint.color = Color.parseColor("#EDF2F7")
             paint.style = Paint.Style.FILL
             canvas.drawRect(photoRect, paint)
@@ -184,7 +185,6 @@ object PdfGenerator {
             paint.strokeWidth = 1f
             canvas.drawRect(photoRect, paint)
 
-            // Initials or Silhouette
             paint.style = Paint.Style.FILL
             paint.color = headerColor
             paint.textSize = 36f
@@ -217,136 +217,184 @@ object PdfGenerator {
         val displayName = profile.fullName.ifBlank { "FULL NAME" }.uppercase()
         canvas.drawText(displayName, photoCardLeft + (leftCardWidth / 2f), badgeTextY, paint)
 
-        // Left Phone Number box
-        val phoneTop = badgeTop + badgeHeight
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.FILL
-        canvas.drawRect(photoCardLeft, phoneTop, photoCardLeft + leftCardWidth, phoneTop + phoneBoxHeight, paint)
+        // Left Phone Number box (ONLY if filled!)
+        if (hasPhoneUnderPhoto) {
+            val phoneTop = badgeTop + badgeHeight
+            paint.color = Color.WHITE
+            paint.style = Paint.Style.FILL
+            canvas.drawRect(photoCardLeft, phoneTop, photoCardLeft + leftCardWidth, phoneTop + phoneBoxHeight, paint)
 
-        paint.color = borderColor
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1f
-        canvas.drawRect(photoCardLeft, phoneTop, photoCardLeft + leftCardWidth, phoneTop + phoneBoxHeight, paint)
+            paint.color = borderColor
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 1f
+            canvas.drawRect(photoCardLeft, phoneTop, photoCardLeft + leftCardWidth, phoneTop + phoneBoxHeight, paint)
 
-        paint.color = Color.parseColor("#111827")
-        paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-        paint.textSize = 11f
-        paint.textAlign = Paint.Align.CENTER
-        val phoneY = phoneTop + (phoneBoxHeight / 2f) - ((paint.descent() + paint.ascent()) / 2f)
-        val displayPhone = profile.displayPhotoNumber.ifBlank { profile.phoneNumber }
-        canvas.drawText(displayPhone, photoCardLeft + (leftCardWidth / 2f), phoneY, paint)
+            paint.color = Color.parseColor("#111827")
+            paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            paint.textSize = 11f
+            paint.textAlign = Paint.Align.CENTER
+            val phoneY = phoneTop + (phoneBoxHeight / 2f) - ((paint.descent() + paint.ascent()) / 2f)
+            canvas.drawText(profile.displayPhotoNumber, photoCardLeft + (leftCardWidth / 2f), phoneY, paint)
+        }
 
-        // --- RIGHT COLUMN: 3 TABLES ---
+        // --- RIGHT COLUMN: DYNAMIC TABLES (ONLY FILLED ITEMS ADDED) ---
         var currentY = startY
         val tableHeaderHeight = 22f
-        val rowHeight = 24f
+        val standardRowHeight = 24f
+        val col1Width = 85f
 
         // ==========================================
         // SECTION 1: PERSONAL & CONTACT INFORMATION
         // ==========================================
-        drawTableHeader(canvas, rightTableX, currentY, rightTableWidth, tableHeaderHeight, "PERSONAL & CONTACT INFORMATION", headerColor)
-        currentY += tableHeaderHeight
+        val hasGender = profile.gender.isNotBlank()
+        val hasLga = profile.lgaState.isNotBlank()
+        val hasPhone = profile.phoneNumber.isNotBlank()
+        val hasAka = profile.alsoKnownAs.isNotBlank()
+        val hasDob = profile.dateOfBirth.isNotBlank()
 
-        // Row 1: Gender | Male | LGA/State: | Kontagori, Niger State
-        val col1Width = 85f
-        val col2Width = 160f
-        val col3Width = 95f
-        val col4Width = rightTableWidth - col1Width - col2Width - col3Width
+        val hasAnyContact = hasGender || hasLga || hasPhone || hasAka || hasDob
 
-        drawGridRow4Cols(
-            canvas, rightTableX, currentY,
-            col1Width, col2Width, col3Width, col4Width, rowHeight,
-            "Gender:", profile.gender.ifBlank { "—" },
-            "LGA/State:", profile.lgaState.ifBlank { "—" },
-            borderColor, labelColor, valueColor
-        )
-        currentY += rowHeight
+        if (hasAnyContact) {
+            drawTableHeader(canvas, rightTableX, currentY, rightTableWidth, tableHeaderHeight, "PERSONAL & CONTACT INFORMATION", headerColor)
+            currentY += tableHeaderHeight
 
-        // Row 2: Phone Number: | 07062270031 | Also Known As | Sardaunan Samari
-        drawGridRow4Cols(
-            canvas, rightTableX, currentY,
-            col1Width, col2Width, col3Width, col4Width, rowHeight,
-            "Phone Number:", profile.phoneNumber.ifBlank { "—" },
-            "Also Known As", profile.alsoKnownAs.ifBlank { "—" },
-            borderColor, labelColor, valueColor
-        )
-        currentY += rowHeight
+            // Check Row 1: Gender / LGA
+            if (hasGender && hasLga) {
+                val col2Width = 160f
+                val col3Width = 95f
+                val col4Width = rightTableWidth - col1Width - col2Width - col3Width
+                drawGridRow4Cols(
+                    canvas, rightTableX, currentY,
+                    col1Width, col2Width, col3Width, col4Width, standardRowHeight,
+                    "Gender:", profile.gender,
+                    "LGA/State:", profile.lgaState,
+                    borderColor, labelColor, valueColor
+                )
+                currentY += standardRowHeight
+            } else if (hasGender) {
+                drawGridRow2Cols(
+                    canvas, rightTableX, currentY,
+                    col1Width, rightTableWidth - col1Width, standardRowHeight,
+                    "Gender:", profile.gender,
+                    borderColor, labelColor, valueColor
+                )
+                currentY += standardRowHeight
+            } else if (hasLga) {
+                drawGridRow2Cols(
+                    canvas, rightTableX, currentY,
+                    col1Width, rightTableWidth - col1Width, standardRowHeight,
+                    "LGA/State:", profile.lgaState,
+                    borderColor, labelColor, valueColor
+                )
+                currentY += standardRowHeight
+            }
 
-        // Row 3: Date of Birth | 18th August, 1992
-        drawGridRow2Cols(
-            canvas, rightTableX, currentY,
-            col1Width, rightTableWidth - col1Width, rowHeight,
-            "Date of Birth", profile.dateOfBirth.ifBlank { "—" },
-            borderColor, labelColor, valueColor
-        )
-        currentY += rowHeight
+            // Check Row 2: Phone / AKA
+            if (hasPhone && hasAka) {
+                val col2Width = 160f
+                val col3Width = 95f
+                val col4Width = rightTableWidth - col1Width - col2Width - col3Width
+                drawGridRow4Cols(
+                    canvas, rightTableX, currentY,
+                    col1Width, col2Width, col3Width, col4Width, standardRowHeight,
+                    "Phone Number:", profile.phoneNumber,
+                    "Also Known As", profile.alsoKnownAs,
+                    borderColor, labelColor, valueColor
+                )
+                currentY += standardRowHeight
+            } else if (hasPhone) {
+                drawGridRow2Cols(
+                    canvas, rightTableX, currentY,
+                    col1Width, rightTableWidth - col1Width, standardRowHeight,
+                    "Phone Number:", profile.phoneNumber,
+                    borderColor, labelColor, valueColor
+                )
+                currentY += standardRowHeight
+            } else if (hasAka) {
+                drawGridRow2Cols(
+                    canvas, rightTableX, currentY,
+                    col1Width, rightTableWidth - col1Width, standardRowHeight,
+                    "Also Known As", profile.alsoKnownAs,
+                    borderColor, labelColor, valueColor
+                )
+                currentY += standardRowHeight
+            }
 
-        // Gap
-        currentY += 12f
+            // Check Row 3: Date of Birth
+            if (hasDob) {
+                drawGridRow2Cols(
+                    canvas, rightTableX, currentY,
+                    col1Width, rightTableWidth - col1Width, standardRowHeight,
+                    "Date of Birth", profile.dateOfBirth,
+                    borderColor, labelColor, valueColor
+                )
+                currentY += standardRowHeight
+            }
 
-        // ==========================================
-        // SECTION 2: SOCIAL MEDIA
-        // ==========================================
-        drawTableHeader(canvas, rightTableX, currentY, rightTableWidth, tableHeaderHeight, "SOCIAL MEDIA", headerColor)
-        currentY += tableHeaderHeight
-
-        // Row 1: Facebook | value
-        drawGridRow2Cols(
-            canvas, rightTableX, currentY,
-            col1Width, rightTableWidth - col1Width, rowHeight,
-            "Facebook", profile.facebook.ifBlank { "—" },
-            borderColor, labelColor, valueColor
-        )
-        currentY += rowHeight
-
-        if (profile.otherSocialMedia.isNotBlank()) {
-            drawGridRow2Cols(
-                canvas, rightTableX, currentY,
-                col1Width, rightTableWidth - col1Width, rowHeight,
-                "Other Media", profile.otherSocialMedia,
-                borderColor, labelColor, valueColor
-            )
-            currentY += rowHeight
+            // Gap only if this table was drawn
+            currentY += 12f
         }
 
-        // Gap
-        currentY += 12f
+        // ==========================================
+        // SECTION 2: SOCIAL MEDIA (Facebook, Twitter/X, Instagram, YouTube, Other)
+        // ==========================================
+        val socialEntries = mutableListOf<Pair<String, String>>()
+        if (profile.facebook.isNotBlank()) socialEntries.add("Facebook" to profile.facebook)
+        if (profile.twitter.isNotBlank()) socialEntries.add("Twitter / X" to profile.twitter)
+        if (profile.instagram.isNotBlank()) socialEntries.add("Instagram" to profile.instagram)
+        if (profile.youtube.isNotBlank()) socialEntries.add("YouTube" to profile.youtube)
+        if (profile.otherSocialMedia.isNotBlank()) socialEntries.add("Other Social" to profile.otherSocialMedia)
+
+        // Only draw SOCIAL MEDIA table if user filled at least one!
+        if (socialEntries.isNotEmpty()) {
+            drawTableHeader(canvas, rightTableX, currentY, rightTableWidth, tableHeaderHeight, "SOCIAL MEDIA", headerColor)
+            currentY += tableHeaderHeight
+
+            for ((platform, handle) in socialEntries) {
+                drawGridRow2Cols(
+                    canvas, rightTableX, currentY,
+                    col1Width, rightTableWidth - col1Width, standardRowHeight,
+                    platform, handle,
+                    borderColor, labelColor, valueColor
+                )
+                currentY += standardRowHeight
+            }
+
+            currentY += 12f
+        }
 
         // ==========================================
-        // SECTION 3: OTHER INFORMATION
+        // SECTION 3: OTHER INFORMATION & CUSTOM FIELDS
         // ==========================================
-        drawTableHeader(canvas, rightTableX, currentY, rightTableWidth, tableHeaderHeight, "OTHER INFORMATION", headerColor)
-        currentY += tableHeaderHeight
+        val otherEntries = mutableListOf<Triple<String, String, Boolean>>()
+        if (profile.occupation.isNotBlank()) otherEntries.add(Triple("Occupation", profile.occupation, false))
+        if (profile.education.isNotBlank()) otherEntries.add(Triple("Education", profile.education, false))
+        if (profile.associatesPhoneNumbers.isNotBlank()) otherEntries.add(Triple("Associates Phone\nNumbers", profile.associatesPhoneNumbers, true))
 
-        // Row 1: Occupation
-        val occHeight = calculateRowHeight(profile.occupation.ifBlank { "—" }, rightTableWidth - col1Width, 10f, 26f)
-        drawGridRow2ColsMultiLine(
-            canvas, textPaint, rightTableX, currentY,
-            col1Width, rightTableWidth - col1Width, occHeight,
-            "Occupation", profile.occupation.ifBlank { "—" },
-            borderColor, labelColor, valueColor
-        )
-        currentY += occHeight
+        // Add custom fields entered by the user!
+        val customFields = profile.getCustomFields().filter { it.label.isNotBlank() && it.value.isNotBlank() }
+        for (cf in customFields) {
+            val isMulti = cf.value.contains("\n") || cf.value.length > 50
+            otherEntries.add(Triple(cf.label, cf.value, isMulti))
+        }
 
-        // Row 2: Education
-        val eduHeight = calculateRowHeight(profile.education.ifBlank { "—" }, rightTableWidth - col1Width, 10f, 26f)
-        drawGridRow2ColsMultiLine(
-            canvas, textPaint, rightTableX, currentY,
-            col1Width, rightTableWidth - col1Width, eduHeight,
-            "Education", profile.education.ifBlank { "—" },
-            borderColor, labelColor, valueColor
-        )
-        currentY += eduHeight
+        // Only draw OTHER INFORMATION table if user filled at least one item or custom field!
+        if (otherEntries.isNotEmpty()) {
+            drawTableHeader(canvas, rightTableX, currentY, rightTableWidth, tableHeaderHeight, "OTHER INFORMATION", headerColor)
+            currentY += tableHeaderHeight
 
-        // Row 3: Associates Phone Numbers
-        val associatesText = profile.associatesPhoneNumbers.ifBlank { "—" }
-        val assocHeight = calculateRowHeight(associatesText, rightTableWidth - col1Width, 10f, 48f)
-        drawGridRow2ColsMultiLine(
-            canvas, textPaint, rightTableX, currentY,
-            col1Width, rightTableWidth - col1Width, assocHeight,
-            "Associates Phone\nNumbers", associatesText,
-            borderColor, labelColor, valueColor
-        )
+            for ((label, value, isMulti) in otherEntries) {
+                val minH = if (isMulti) 38f else 25f
+                val rowH = calculateRowHeight(value, rightTableWidth - col1Width, 10f, minH)
+                drawGridRow2ColsMultiLine(
+                    canvas, textPaint, rightTableX, currentY,
+                    col1Width, rightTableWidth - col1Width, rowH,
+                    label, value,
+                    borderColor, labelColor, valueColor
+                )
+                currentY += rowH
+            }
+        }
     }
 
     private fun drawTableHeader(canvas: Canvas, x: Float, y: Float, width: Float, height: Float, title: String, color: Int) {
@@ -385,7 +433,6 @@ object PdfGenerator {
     ) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        // Draw Cell Borders
         paint.color = borderColor
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1f
@@ -394,7 +441,6 @@ object PdfGenerator {
         canvas.drawRect(x + w1 + w2, y, x + w1 + w2 + w3, y + height, paint)
         canvas.drawRect(x + w1 + w2 + w3, y, x + w1 + w2 + w3 + w4, y + height, paint)
 
-        // Label 1
         paint.style = Paint.Style.FILL
         paint.color = labelColor
         paint.typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
@@ -403,17 +449,14 @@ object PdfGenerator {
         val textY = y + (height / 2f) - ((paint.descent() + paint.ascent()) / 2f)
         canvas.drawText(label1, x + 6f, textY, paint)
 
-        // Value 1
         paint.color = valColor
         paint.typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
         canvas.drawText(val1, x + w1 + 6f, textY, paint)
 
-        // Label 2
         paint.color = labelColor
         paint.typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
         canvas.drawText(label2, x + w1 + w2 + 6f, textY, paint)
 
-        // Value 2
         paint.color = valColor
         paint.typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
         canvas.drawText(val2, x + w1 + w2 + w3 + 6f, textY, paint)
@@ -434,14 +477,12 @@ object PdfGenerator {
     ) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        // Cell borders
         paint.color = borderColor
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1f
         canvas.drawRect(x, y, x + w1, y + height, paint)
         canvas.drawRect(x + w1, y, x + w1 + w2, y + height, paint)
 
-        // Label
         paint.style = Paint.Style.FILL
         paint.color = labelColor
         paint.typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
@@ -450,7 +491,6 @@ object PdfGenerator {
         val textY = y + (height / 2f) - ((paint.descent() + paint.ascent()) / 2f)
         canvas.drawText(label, x + 6f, textY, paint)
 
-        // Value
         paint.color = valColor
         paint.typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
         canvas.drawText(value, x + w1 + 6f, textY, paint)
@@ -472,14 +512,12 @@ object PdfGenerator {
     ) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        // Cell borders
         paint.color = borderColor
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1f
         canvas.drawRect(x, y, x + w1, y + height, paint)
         canvas.drawRect(x + w1, y, x + w1 + w2, y + height, paint)
 
-        // Draw multi-line or single-line label
         textPaint.color = labelColor
         textPaint.typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
         textPaint.textSize = 9f
@@ -490,7 +528,6 @@ object PdfGenerator {
             labelY += 12f
         }
 
-        // Draw value with text wrap
         textPaint.color = valColor
         textPaint.typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
         val valuePadding = 6f
@@ -536,7 +573,6 @@ object PdfGenerator {
     private fun drawWatermark(canvas: Canvas, width: Float, height: Float, text: String, color: Int) {
         if (text.isBlank()) return
         canvas.save()
-        // Center rotation
         canvas.translate(width * 0.55f, height * 0.58f)
         canvas.rotate(-32f)
 
@@ -551,7 +587,7 @@ object PdfGenerator {
         canvas.drawText(text, 0f, 60f, paint)
 
         paint.style = Paint.Style.FILL
-        paint.color = Color.parseColor("#08000000") // Very soft fill
+        paint.color = Color.parseColor("#08000000")
         canvas.drawText(text, 0f, 60f, paint)
 
         canvas.restore()
@@ -568,9 +604,8 @@ object PdfGenerator {
             } ?: return null
 
             inputStream.use { stream ->
-                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                // First decode bounds
                 val bytes = stream.readBytes()
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
 
                 var inSampleSize = 1
@@ -603,12 +638,10 @@ object PdfGenerator {
 
         val srcRect: Rect
         if (srcRatio > destRatio) {
-            // Bitmap is wider than destination
             val cropWidth = (srcHeight * destRatio).toInt()
             val left = ((srcWidth - cropWidth) / 2).toInt()
             srcRect = Rect(left, 0, left + cropWidth, bitmap.height)
         } else {
-            // Bitmap is taller than destination
             val cropHeight = (srcWidth / destRatio).toInt()
             val top = ((srcHeight - cropHeight) / 2).toInt()
             srcRect = Rect(0, top, bitmap.width, top + cropHeight)

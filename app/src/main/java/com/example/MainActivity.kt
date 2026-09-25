@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
@@ -46,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pdf.PdfViewerHelper
 import com.example.ui.DossierViewModel
+import com.example.ui.screens.CameraCaptureScreen
 import com.example.ui.screens.FormScreen
 import com.example.ui.screens.PreviewScreen
 import com.example.ui.screens.SavedProfilesScreen
@@ -56,6 +58,11 @@ enum class ScreenTab {
     FORM,
     PREVIEW,
     PROFILES
+}
+
+enum class CameraTarget {
+    PROFILE_PHOTO,
+    FORM_DOCUMENT
 }
 
 class MainActivity : ComponentActivity() {
@@ -76,10 +83,10 @@ fun MainAppScreen(
     viewModel: DossierViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var currentTab by remember { mutableStateOf(ScreenTab.FORM) }
+    var activeCameraTarget by remember { mutableStateOf<CameraTarget?>(null) }
 
     val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
     val savedProfiles by viewModel.savedProfiles.collectAsStateWithLifecycle()
@@ -93,6 +100,32 @@ fun MainAppScreen(
             snackbarHostState.showSnackbar(msg)
             viewModel.clearStatusMessage()
         }
+    }
+
+    // Camera Preview Screen Active
+    if (activeCameraTarget != null) {
+        val target = activeCameraTarget!!
+        CameraCaptureScreen(
+            title = if (target == CameraTarget.PROFILE_PHOTO) "Capture Profile Photo" else "Capture Form / Document",
+            onPhotoCaptured = { file ->
+                if (target == CameraTarget.PROFILE_PHOTO) {
+                    viewModel.setPhotoFromPath(file.absolutePath)
+                } else {
+                    viewModel.setFormImageFromPath(file.absolutePath)
+                }
+                activeCameraTarget = null
+            },
+            onUploadSelected = { uri ->
+                if (target == CameraTarget.PROFILE_PHOTO) {
+                    viewModel.setPhotoFromUri(context, uri)
+                } else {
+                    viewModel.setFormImageFromUri(context, uri)
+                }
+                activeCameraTarget = null
+            },
+            onDismiss = { activeCameraTarget = null }
+        )
+        return
     }
 
     // Back handling
@@ -110,9 +143,9 @@ fun MainAppScreen(
                 title = {
                     Text(
                         text = when (currentTab) {
-                            ScreenTab.FORM -> "Fill Dossier Info"
-                            ScreenTab.PREVIEW -> "Document & PDF Preview"
-                            ScreenTab.PROFILES -> "Saved Profiles"
+                            ScreenTab.FORM -> "greymmc | Profile Builder"
+                            ScreenTab.PREVIEW -> "greymmc | PDF Document"
+                            ScreenTab.PROFILES -> "greymmc | Saved Profiles"
                         },
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -124,6 +157,12 @@ fun MainAppScreen(
                     navigationIconContentColor = Color.White
                 ),
                 actions = {
+                    IconButton(
+                        onClick = { activeCameraTarget = CameraTarget.FORM_DOCUMENT },
+                        modifier = Modifier.testTag("topbar_camera_button")
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = "Camera Scan Form")
+                    }
                     IconButton(
                         onClick = {
                             viewModel.generatePdf(context) { file ->
@@ -178,6 +217,7 @@ fun MainAppScreen(
                         onFullNameChange = viewModel::updateFullName,
                         onPhotoSelected = { uri -> viewModel.setPhotoFromUri(context, uri) },
                         onPhotoRemoved = viewModel::removePhoto,
+                        onRequestCameraForPhoto = { activeCameraTarget = CameraTarget.PROFILE_PHOTO },
                         onPhotoDisplayNumberChange = viewModel::updatePhotoDisplayNumber,
                         onGenderChange = viewModel::updateGender,
                         onLgaStateChange = viewModel::updateLgaState,
@@ -185,13 +225,21 @@ fun MainAppScreen(
                         onAlsoKnownAsChange = viewModel::updateAlsoKnownAs,
                         onDateOfBirthChange = viewModel::updateDateOfBirth,
                         onFacebookChange = viewModel::updateFacebook,
+                        onTwitterChange = viewModel::updateTwitter,
+                        onInstagramChange = viewModel::updateInstagram,
+                        onYoutubeChange = viewModel::updateYoutube,
                         onOtherSocialChange = viewModel::updateOtherSocial,
                         onOccupationChange = viewModel::updateOccupation,
                         onEducationChange = viewModel::updateEducation,
                         onAssociatesChange = viewModel::updateAssociates,
+                        onFormImageSelected = { uri -> viewModel.setFormImageFromUri(context, uri) },
+                        onFormImageRemoved = viewModel::removeFormImage,
+                        onRequestCameraForForm = { activeCameraTarget = CameraTarget.FORM_DOCUMENT },
+                        onAddCustomField = viewModel::addCustomField,
+                        onUpdateCustomField = viewModel::updateCustomField,
+                        onRemoveCustomField = viewModel::removeCustomField,
                         onWatermarkChange = viewModel::updateWatermarkText,
                         onHeaderColorChange = viewModel::updateHeaderColor,
-                        onLoadSample = viewModel::loadSampleData,
                         onReset = viewModel::resetForm,
                         onSave = viewModel::saveCurrentProfile,
                         onNavigateToPreview = { currentTab = ScreenTab.PREVIEW }

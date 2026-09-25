@@ -2,6 +2,15 @@ package com.example.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
+
+data class CustomField(
+    val id: String = UUID.randomUUID().toString(),
+    val label: String = "",
+    val value: String = ""
+)
 
 @Entity(tableName = "dossier_profiles")
 data class DossierProfile(
@@ -16,34 +25,56 @@ data class DossierProfile(
     val alsoKnownAs: String = "",
     val dateOfBirth: String = "",
     val facebook: String = "",
+    val twitter: String = "",
+    val instagram: String = "",
+    val youtube: String = "",
     val otherSocialMedia: String = "",
     val occupation: String = "",
     val education: String = "",
     val associatesPhoneNumbers: String = "",
-    val watermarkText: String = "NS",
+    val formImageUri: String? = null,
+    val customFieldsJson: String = "[]",
+    val watermarkText: String = "",
     val headerColorHex: String = "#102E56",
     val updatedAt: Long = System.currentTimeMillis()
 ) {
     val displayPhotoNumber: String
         get() = if (photoDisplayNumber.isNotBlank()) photoDisplayNumber else phoneNumber
 
+    fun getCustomFields(): List<CustomField> {
+        if (customFieldsJson.isBlank()) return emptyList()
+        return try {
+            val array = JSONArray(customFieldsJson)
+            val list = mutableListOf<CustomField>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    CustomField(
+                        id = obj.optString("id", UUID.randomUUID().toString()),
+                        label = obj.optString("label", ""),
+                        value = obj.optString("value", "")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun withCustomFields(fields: List<CustomField>): DossierProfile {
+        val array = JSONArray()
+        for (f in fields) {
+            val obj = JSONObject()
+            obj.put("id", f.id)
+            obj.put("label", f.label)
+            obj.put("value", f.value)
+            array.put(obj)
+        }
+        return this.copy(customFieldsJson = array.toString())
+    }
+
     companion object {
-        fun createSample(): DossierProfile = DossierProfile(
-            fullName = "MUBARAK ADULLAHI",
-            photoUri = null,
-            photoDisplayNumber = "07062270031",
-            gender = "Male",
-            lgaState = "Kontagori, Niger State",
-            phoneNumber = "07062270031",
-            alsoKnownAs = "Sardaunan Samari",
-            dateOfBirth = "18th August, 1992",
-            facebook = "Mubarak.abdullahi.739",
-            otherSocialMedia = "",
-            occupation = "Activist/ Advocate / ADC Supporter",
-            education = "Government Secondary School Kontagora, Niger State",
-            associatesPhoneNumbers = "08109595044 (Yusuf ALIYU)\n07037882149 (Musa Reskona ABUBAKAR)",
-            watermarkText = "NS",
-            headerColorHex = "#102E56"
-        )
+        fun createEmpty(): DossierProfile = DossierProfile()
     }
 }

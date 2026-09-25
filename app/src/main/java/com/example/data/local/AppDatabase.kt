@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.data.model.DossierProfile
 
-@Database(entities = [DossierProfile::class], version = 1, exportSchema = false)
+@Database(entities = [DossierProfile::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dossierDao(): DossierDao
 

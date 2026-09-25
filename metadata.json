@@ -1,6 +1,6 @@
 {
-  "name": "Dossier PDF",
-  "description": "Create and export professional profile dossiers and info sheets in high-resolution PDF matching custom template formats.",
+  "name": "greymmc",
+  "description": "Professional profiling and dossier management application to capture documents, profile information, and generate official PDFs.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
