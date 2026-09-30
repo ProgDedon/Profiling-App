@@ -8,9 +8,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -109,7 +107,7 @@ fun CameraCaptureScreen(
     }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
+        contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
             onUploadSelected(uri)
@@ -128,7 +126,7 @@ fun CameraCaptureScreen(
             .build()
     }
 
-    // Update flash mode on imageCapture
+    // Update flash mode on imageCapture safely
     LaunchedEffect(flashMode) {
         try {
             imageCapture.flashMode = flashMode
@@ -182,7 +180,7 @@ fun CameraCaptureScreen(
                         )
 
                         Text(
-                            text = "Camera access allows you to take pictures of your physical forms, documents, or profile portraits directly within the app.",
+                            text = "Camera access allows you to take profile portrait pictures directly within the app.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -198,11 +196,7 @@ fun CameraCaptureScreen(
                         }
 
                         OutlinedButton(
-                            onClick = {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
+                            onClick = { photoPickerLauncher.launch("image/*") },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("upload_image_fallback_button")
@@ -226,7 +220,6 @@ fun CameraCaptureScreen(
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Top bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -247,7 +240,6 @@ fun CameraCaptureScreen(
                     }
                 }
 
-                // Preview captured image
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -263,7 +255,6 @@ fun CameraCaptureScreen(
                     )
                 }
 
-                // Bottom Action buttons
                 Surface(
                     color = Color(0xCC000000),
                     modifier = Modifier.fillMaxWidth()
@@ -303,68 +294,145 @@ fun CameraCaptureScreen(
                 }
             }
         } else {
-            // Live CameraX Preview
-            val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+            // Live CameraX Preview using COMPATIBLE mode (TextureView) to prevent SurfaceView abandoned buffer queues
             var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+            var isCameraAvailable by remember { mutableStateOf(true) }
+            val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { ctx ->
-                    val previewView = PreviewView(ctx).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
+            // Initialize cameraProvider once
+            LaunchedEffect(Unit) {
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                cameraProviderFuture.addListener({
+                    try {
+                        cameraProvider = cameraProviderFuture.get()
+                    } catch (_: Exception) {}
+                }, ContextCompat.getMainExecutor(context))
+            }
+
+            // Cleanup when leaving screen
+            DisposableEffect(lifecycleOwner) {
+                onDispose {
+                    try {
+                        cameraProvider?.unbindAll()
+                        cameraExecutor.shutdown()
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // PreviewView instance with TextureView mode
+            val previewView = remember(context) {
+                PreviewView(context).apply {
+                    // Use COMPATIBLE implementation mode (TextureView) to prevent BufferQueue abandoned issues
+                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    scaleType = PreviewView.ScaleType.FILL_CENTER
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                }
+            }
+
+            // Bind camera safely only when cameraProvider or lensFacing changes
+            LaunchedEffect(cameraProvider, lensFacing, lifecycleOwner) {
+                val provider = cameraProvider ?: return@LaunchedEffect
+                try {
+                    provider.unbindAll()
+
+                    val targetLens = lensFacing
+                    val cameraSelector = CameraSelector.Builder()
+                        .requireLensFacing(targetLens)
+                        .build()
+
+                    // Check if device actually has requested camera
+                    val safeSelector = if (provider.hasCamera(cameraSelector)) {
+                        cameraSelector
+                    } else if (provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
+                        CameraSelector.DEFAULT_BACK_CAMERA
+                    } else if (provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                        CameraSelector.DEFAULT_FRONT_CAMERA
+                    } else {
+                        null
                     }
 
-                    val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                    cameraProviderFuture.addListener({
-                        val provider = cameraProviderFuture.get()
-                        cameraProvider = provider
-
+                    if (safeSelector != null) {
+                        isCameraAvailable = true
                         val preview = Preview.Builder().build().also {
                             it.setSurfaceProvider(previewView.surfaceProvider)
                         }
 
-                        val cameraSelector = CameraSelector.Builder()
-                            .requireLensFacing(lensFacing)
-                            .build()
+                        provider.bindToLifecycle(
+                            lifecycleOwner,
+                            safeSelector,
+                            preview,
+                            imageCapture
+                        )
+                    } else {
+                        isCameraAvailable = false
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    isCameraAvailable = false
+                }
+            }
 
-                        try {
-                            provider.unbindAll()
-                            provider.bindToLifecycle(
-                                lifecycleOwner,
-                                cameraSelector,
-                                preview,
-                                imageCapture
+            if (!isCameraAvailable) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(56.dp)
                             )
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }, ContextCompat.getMainExecutor(ctx))
-
-                    previewView
-                },
-                update = { previewView ->
-                    cameraProvider?.let { provider ->
-                        try {
-                            provider.unbindAll()
-                            val preview = Preview.Builder().build().also {
-                                it.setSurfaceProvider(previewView.surfaceProvider)
+                            Text(
+                                text = "Camera Hardware Unavailable",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "No camera was detected on this device. You can upload an image or photo directly from your device storage.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(
+                                onClick = { photoPickerLauncher.launch("image/*") },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Upload, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Upload Image from Device")
                             }
-                            val cameraSelector = CameraSelector.Builder()
-                                .requireLensFacing(lensFacing)
-                                .build()
-                            provider.bindToLifecycle(
-                                lifecycleOwner,
-                                cameraSelector,
-                                preview,
-                                imageCapture
-                            )
-                        } catch (_: Exception) {}
+                            OutlinedButton(
+                                onClick = onDismiss,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Close")
+                            }
+                        }
                     }
                 }
-            )
+            } else {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { previewView }
+                )
 
             // Document Framing Guide Overlay
             Box(
@@ -439,11 +507,7 @@ fun CameraCaptureScreen(
             ) {
                 // Upload from gallery icon button
                 IconButton(
-                    onClick = {
-                        photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
+                    onClick = { photoPickerLauncher.launch("image/*") },
                     modifier = Modifier
                         .size(48.dp)
                         .testTag("camera_upload_button")
@@ -502,10 +566,18 @@ fun CameraCaptureScreen(
                 // Switch Camera Lens Facing
                 IconButton(
                     onClick = {
-                        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
+                        val newFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
                             CameraSelector.LENS_FACING_FRONT
                         } else {
                             CameraSelector.LENS_FACING_BACK
+                        }
+                        cameraProvider?.let { provider ->
+                            val selector = CameraSelector.Builder().requireLensFacing(newFacing).build()
+                            if (provider.hasCamera(selector)) {
+                                lensFacing = newFacing
+                            } else {
+                                Toast.makeText(context, "Lens not available on this device", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
                     modifier = Modifier
@@ -518,6 +590,7 @@ fun CameraCaptureScreen(
                     }
                 }
             }
+        }
         }
     }
 }

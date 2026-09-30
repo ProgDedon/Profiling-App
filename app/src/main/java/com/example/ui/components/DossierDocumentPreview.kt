@@ -24,12 +24,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -37,8 +39,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.R
 import com.example.data.model.DossierProfile
 import java.io.File
+
+val BookmanFontFamily = FontFamily(
+    Font(R.font.bookman_old_style, FontWeight.Normal),
+    Font(R.font.bookman_old_style, FontWeight.Bold)
+)
 
 @Composable
 fun DossierDocumentPreview(
@@ -58,34 +66,38 @@ fun DossierDocumentPreview(
     Card(
         modifier = modifier
             .testTag("dossier_document_card")
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .border(1.dp, borderColor, RoundedCornerShape(2.dp)),
         shape = RoundedCornerShape(2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp)
         ) {
-            // Subtle Watermark in Background
-            if (profile.watermarkText.isNotBlank()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 40.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = profile.watermarkText,
-                        color = Color(0x0E000000),
-                        fontSize = 110.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontStyle = FontStyle.Italic,
-                        fontFamily = FontFamily.Serif,
-                        modifier = Modifier.rotate(-28f)
-                    )
+            // Permanent Watermark in Background: Clean "MMC" with no shadow
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val watermarkText = if (profile.watermarkText.isNotBlank() && profile.watermarkText != "by MMC") {
+                    profile.watermarkText
+                } else {
+                    "MMC"
                 }
+                Text(
+                    text = watermarkText,
+                    color = Color(0x0C000000),
+                    fontSize = 110.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontStyle = FontStyle.Italic,
+                    fontFamily = BookmanFontFamily,
+                    modifier = Modifier.rotate(-28f)
+                )
             }
 
             Column(
@@ -104,7 +116,7 @@ fun DossierDocumentPreview(
                         color = Color.White,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Serif,
+                        fontFamily = BookmanFontFamily,
                         letterSpacing = 1.sp,
                         textAlign = TextAlign.Center
                     )
@@ -165,6 +177,7 @@ fun DossierDocumentPreview(
                                         text = initials,
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
+                                        fontFamily = BookmanFontFamily,
                                         color = headerColor
                                     )
                                 }
@@ -184,7 +197,7 @@ fun DossierDocumentPreview(
                                 color = Color.White,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Serif,
+                                fontFamily = BookmanFontFamily,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1
                             )
@@ -192,6 +205,7 @@ fun DossierDocumentPreview(
 
                         // Phone number under photo (ONLY IF NOT BLANK!)
                         if (profile.displayPhotoNumber.isNotBlank()) {
+                            val phoneList = profile.displayPhotoNumber.split(Regex("[\n,/]+")).map { it.trim() }.filter { it.isNotBlank() }
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -200,14 +214,19 @@ fun DossierDocumentPreview(
                                     .padding(vertical = 4.dp, horizontal = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = profile.displayPhotoNumber,
-                                    color = Color(0xFF1E293B),
-                                    fontSize = 9.sp,
-                                    fontFamily = FontFamily.SansSerif,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1
-                                )
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    phoneList.take(3).forEach { num ->
+                                        Text(
+                                            text = num,
+                                            color = Color(0xFF1E293B),
+                                            fontSize = if (phoneList.size > 1) 8.sp else 9.sp,
+                                            fontFamily = BookmanFontFamily,
+                                            textAlign = TextAlign.Center,
+                                            lineHeight = 11.sp,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -218,75 +237,51 @@ fun DossierDocumentPreview(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // SECTION 1: PERSONAL & CONTACT INFORMATION
-                        val hasGender = profile.gender.isNotBlank()
-                        val hasLga = profile.lgaState.isNotBlank()
-                        val hasPhone = profile.phoneNumber.isNotBlank()
-                        val hasAka = profile.alsoKnownAs.isNotBlank()
-                        val hasDob = profile.dateOfBirth.isNotBlank()
+                        val personalEntries = remember(profile) {
+                            val list = mutableListOf<PreviewFieldEntry>()
+                            if (profile.gender.isNotBlank()) list.add(PreviewFieldEntry("Gender", profile.gender))
+                            if (profile.lgaState.isNotBlank()) list.add(PreviewFieldEntry("LGA/State", profile.lgaState))
+                            if (profile.phoneNumber.isNotBlank()) {
+                                val isMulti = profile.phoneNumber.contains("\n") || profile.phoneNumber.length > 25
+                                list.add(PreviewFieldEntry("Phone Number(s)", profile.phoneNumber, isMulti))
+                            }
+                            if (profile.alsoKnownAs.isNotBlank()) list.add(PreviewFieldEntry("Also Known As", profile.alsoKnownAs))
+                            if (profile.dateOfBirth.isNotBlank()) list.add(PreviewFieldEntry("Date of Birth", profile.dateOfBirth))
 
-                        if (hasGender || hasLga || hasPhone || hasAka || hasDob) {
+                            for (pf in profile.getPersonalInfoList()) {
+                                if (pf.label.isNotBlank() && pf.value.isNotBlank()) {
+                                    val isMulti = pf.value.contains("\n") || pf.value.length > 40
+                                    list.add(PreviewFieldEntry(pf.label, pf.value, isMulti))
+                                }
+                            }
+                            list
+                        }
+
+                        if (personalEntries.isNotEmpty()) {
                             SectionTable(
                                 headerTitle = "PERSONAL & CONTACT INFORMATION",
                                 headerColor = headerColor,
                                 borderColor = borderColor
                             ) {
-                                // Row 1: Gender / LGA
-                                if (hasGender && hasLga) {
-                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                        Cell(text = "Gender:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = profile.gender, isLabel = false, weight = 0.28f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = "LGA/State:", isLabel = true, weight = 0.24f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = profile.lgaState, isLabel = false, weight = 0.26f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    }
-                                } else if (hasGender) {
-                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                        Cell(text = "Gender:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = profile.gender, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    }
-                                } else if (hasLga) {
-                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                        Cell(text = "LGA/State:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = profile.lgaState, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    }
-                                }
-
-                                // Row 2: Phone / AKA
-                                if (hasPhone && hasAka) {
-                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                        Cell(text = "Phone Number:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = profile.phoneNumber, isLabel = false, weight = 0.28f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = "Also Known As", isLabel = true, weight = 0.24f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = profile.alsoKnownAs, isLabel = false, weight = 0.26f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    }
-                                } else if (hasPhone) {
-                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                        Cell(text = "Phone Number:", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = profile.phoneNumber, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    }
-                                } else if (hasAka) {
-                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                        Cell(text = "Also Known As", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = profile.alsoKnownAs, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    }
-                                }
-
-                                // Row 3: Date of Birth
-                                if (hasDob) {
-                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                        Cell(text = "Date of Birth", isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = profile.dateOfBirth, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    }
-                                }
+                                SectionFieldsGrid(
+                                    entries = personalEntries,
+                                    borderColor = borderColor,
+                                    labelColor = labelColor,
+                                    valueColor = valueColor
+                                )
                             }
                         }
 
                         // SECTION 2: SOCIAL MEDIA
-                        val socialEntries = mutableListOf<Pair<String, String>>()
-                        if (profile.facebook.isNotBlank()) socialEntries.add("Facebook" to profile.facebook)
-                        if (profile.twitter.isNotBlank()) socialEntries.add("Twitter / X" to profile.twitter)
-                        if (profile.instagram.isNotBlank()) socialEntries.add("Instagram" to profile.instagram)
-                        if (profile.youtube.isNotBlank()) socialEntries.add("YouTube" to profile.youtube)
-                        if (profile.otherSocialMedia.isNotBlank()) socialEntries.add("Other Social" to profile.otherSocialMedia)
+                        val socialEntries = remember(profile) {
+                            val list = mutableListOf<PreviewFieldEntry>()
+                            if (profile.facebook.isNotBlank()) list.add(PreviewFieldEntry("Facebook", profile.facebook))
+                            if (profile.twitter.isNotBlank()) list.add(PreviewFieldEntry("Twitter / X", profile.twitter))
+                            if (profile.instagram.isNotBlank()) list.add(PreviewFieldEntry("Instagram", profile.instagram))
+                            if (profile.youtube.isNotBlank()) list.add(PreviewFieldEntry("YouTube", profile.youtube))
+                            if (profile.otherSocialMedia.isNotBlank()) list.add(PreviewFieldEntry("Other Social", profile.otherSocialMedia))
+                            list
+                        }
 
                         if (socialEntries.isNotEmpty()) {
                             SectionTable(
@@ -294,24 +289,32 @@ fun DossierDocumentPreview(
                                 headerColor = headerColor,
                                 borderColor = borderColor
                             ) {
-                                socialEntries.forEach { (platform, handle) ->
-                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                        Cell(text = platform, isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = handle, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    }
-                                }
+                                SectionFieldsGrid(
+                                    entries = socialEntries,
+                                    borderColor = borderColor,
+                                    labelColor = labelColor,
+                                    valueColor = valueColor
+                                )
                             }
                         }
 
                         // SECTION 3: OTHER INFORMATION & CUSTOM FIELDS
-                        val otherEntries = mutableListOf<Pair<String, String>>()
-                        if (profile.occupation.isNotBlank()) otherEntries.add("Occupation" to profile.occupation)
-                        if (profile.education.isNotBlank()) otherEntries.add("Education" to profile.education)
-                        if (profile.associatesPhoneNumbers.isNotBlank()) otherEntries.add("Associates Phone\nNumbers" to profile.associatesPhoneNumbers)
+                        val otherEntries = remember(profile) {
+                            val list = mutableListOf<PreviewFieldEntry>()
+                            if (profile.occupation.isNotBlank()) list.add(PreviewFieldEntry("Occupation", profile.occupation))
+                            if (profile.education.isNotBlank()) list.add(PreviewFieldEntry("Education", profile.education))
+                            if (profile.associatesPhoneNumbers.isNotBlank()) {
+                                val isMulti = profile.associatesPhoneNumbers.contains("\n") || profile.associatesPhoneNumbers.length > 32
+                                list.add(PreviewFieldEntry("Associates Phone Numbers", profile.associatesPhoneNumbers, isMulti))
+                            }
 
-                        val customFields = profile.getCustomFields().filter { it.label.isNotBlank() && it.value.isNotBlank() }
-                        for (cf in customFields) {
-                            otherEntries.add(cf.label to cf.value)
+                            for (cf in profile.getOtherInfoList()) {
+                                if (cf.label.isNotBlank() && cf.value.isNotBlank()) {
+                                    val isMulti = cf.value.contains("\n") || cf.value.length > 40
+                                    list.add(PreviewFieldEntry(cf.label, cf.value, isMulti))
+                                }
+                            }
+                            list
                         }
 
                         if (otherEntries.isNotEmpty()) {
@@ -320,12 +323,12 @@ fun DossierDocumentPreview(
                                 headerColor = headerColor,
                                 borderColor = borderColor
                             ) {
-                                otherEntries.forEach { (label, value) ->
-                                    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                        Cell(text = label, isLabel = true, weight = 0.22f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                        Cell(text = value, isLabel = false, weight = 0.78f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                                    }
-                                }
+                                SectionFieldsGrid(
+                                    entries = otherEntries,
+                                    borderColor = borderColor,
+                                    labelColor = labelColor,
+                                    valueColor = valueColor
+                                )
                             }
                         }
                     }
@@ -359,7 +362,7 @@ private fun SectionTable(
                 color = Color.White,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Serif
+                fontFamily = BookmanFontFamily
             )
         }
         content()
@@ -389,8 +392,57 @@ private fun RowScope.Cell(
             color = if (isLabel) labelColor else valueColor,
             fontWeight = if (isLabel) FontWeight.Bold else FontWeight.Normal,
             fontSize = 8.5.sp,
-            fontFamily = FontFamily.Serif,
-            lineHeight = 11.sp
+            fontFamily = BookmanFontFamily,
+            lineHeight = 11.sp,
+            softWrap = true
         )
+    }
+}
+
+private data class PreviewFieldEntry(
+    val label: String,
+    val value: String,
+    val isMultiLine: Boolean = false
+) {
+    val isSmall: Boolean
+        get() {
+            if (isMultiLine || value.contains("\n")) return false
+            if (value.length > 32) return false
+            if (label.length > 28) return false
+            val words = label.split(Regex("\\s+")).filter { it.isNotEmpty() }
+            if (words.any { it.length > 14 }) return false
+            return true
+        }
+}
+
+@Composable
+private fun SectionFieldsGrid(
+    entries: List<PreviewFieldEntry>,
+    borderColor: Color,
+    labelColor: Color,
+    valueColor: Color
+) {
+    var i = 0
+    while (i < entries.size) {
+        val current = entries[i]
+        val next = if (i + 1 < entries.size) entries[i + 1] else null
+
+        if (current.isSmall && next != null && next.isSmall) {
+            // Two small fields in a row
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                Cell(text = current.label, isLabel = true, weight = 0.16f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                Cell(text = current.value, isLabel = false, weight = 0.34f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                Cell(text = next.label, isLabel = true, weight = 0.16f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                Cell(text = next.value, isLabel = false, weight = 0.34f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+            }
+            i += 2
+        } else {
+            // Single field in a row
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                Cell(text = current.label, isLabel = true, weight = 0.20f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                Cell(text = current.value, isLabel = false, weight = 0.80f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+            }
+            i += 1
+        }
     }
 }

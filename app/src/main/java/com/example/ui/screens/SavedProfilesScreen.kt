@@ -158,7 +158,7 @@ fun SavedProfilesScreen(
                             onClick = onCreateNew,
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
-                            Text("Create First Profile")
+                            Text("Create Profile")
                         }
                     }
                 }

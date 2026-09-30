@@ -1,7 +1,9 @@
 package com.example.ui.screens
 
-import android.widget.Toast
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,7 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.OpenInNew
@@ -32,26 +34,38 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.DossierProfile
+import com.example.pdf.PdfRendererHelper
 import com.example.pdf.PdfViewerHelper
 import com.example.ui.components.DossierDocumentPreview
-import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
@@ -69,6 +83,18 @@ fun PreviewScreen(
     val context = LocalContext.current
     val vScrollState = rememberScrollState()
     val hScrollState = rememberScrollState()
+
+    var showInAppViewer by remember { mutableStateOf(false) }
+    var renderedPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
+    var selectedPageIndex by remember { mutableIntStateOf(0) }
+    var activeTab by remember { mutableIntStateOf(0) } // 0: Live Form Preview, 1: Rendered PDF Document
+
+    // Load rendered pages whenever lastPdfFile changes
+    LaunchedEffect(lastPdfFile) {
+        if (lastPdfFile != null && lastPdfFile.exists()) {
+            renderedPages = PdfRendererHelper.renderPdfPages(lastPdfFile, 1200)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -101,19 +127,12 @@ fun PreviewScreen(
                         ) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back to Form")
                         }
-                        Column {
-                            Text(
-                                text = "Document Preview",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "A4 Landscape • Ready for PDF Export",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
+                        Text(
+                            text = "Document Preview",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
 
                     OutlinedButton(
@@ -136,7 +155,16 @@ fun PreviewScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = onGenerateAndOpen,
+                        onClick = {
+                            if (lastPdfFile != null && lastPdfFile.exists()) {
+                                val opened = PdfViewerHelper.openPdf(context, lastPdfFile)
+                                if (!opened) {
+                                    showInAppViewer = true
+                                }
+                            } else {
+                                onGenerateAndOpen()
+                            }
+                        },
                         enabled = !isGenerating,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         modifier = Modifier.testTag("open_pdf_button")
@@ -186,8 +214,44 @@ fun PreviewScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Print", fontSize = 12.sp)
                     }
+
+                    if (renderedPages.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = { showInAppViewer = true },
+                            modifier = Modifier.testTag("view_pages_button")
+                        ) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("View Pages (${renderedPages.size})", fontSize = 12.sp)
+                        }
+                    }
                 }
             }
+        }
+
+        // Preview Mode Tabs
+        TabRow(
+            selectedTabIndex = activeTab,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary
+        ) {
+            Tab(
+                selected = activeTab == 0,
+                onClick = { activeTab = 0 },
+                text = { Text("Live Dossier Sheet") }
+            )
+            Tab(
+                selected = activeTab == 1,
+                onClick = {
+                    activeTab = 1
+                    if (renderedPages.isEmpty() && lastPdfFile == null && !isGenerating) {
+                        onGenerateAndOpen()
+                    }
+                },
+                text = {
+                    Text(if (renderedPages.isNotEmpty()) "Generated PDF (${renderedPages.size} Page${if (renderedPages.size > 1) "s" else ""})" else "Generated PDF")
+                }
+            )
         }
 
         // Main Document Canvas Area
@@ -202,54 +266,173 @@ fun PreviewScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Info Banner
-                Card(
-                    modifier = Modifier.widthIn(max = 680.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
+                if (activeTab == 0) {
+                    // Live Vector Compose Preview
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            .widthIn(min = 340.dp, max = 760.dp)
+                            .horizontalScroll(hScrollState)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                        DossierDocumentPreview(
+                            profile = profile,
+                            modifier = Modifier.width(640.dp)
                         )
-                        Column {
-                            Text(
-                                text = "Document Layout Synchronized",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                text = "Header banner, photo badge, and 3 structured data tables are positioned identically to the reference template.",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                    }
+                } else {
+                    // Actual Rendered PDF Pages
+                    if (renderedPages.isNotEmpty()) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.widthIn(max = 760.dp)
+                        ) {
+                            if (renderedPages.size > 1) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    renderedPages.indices.forEach { index ->
+                                        FilterChip(
+                                            selected = selectedPageIndex == index,
+                                            onClick = { selectedPageIndex = index },
+                                            label = {
+                                                Text(if (index == 0) "Page 1: Dossier" else "Page 2: Form Scan")
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            Card(
+                                shape = RoundedCornerShape(4.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(4.dp))
+                            ) {
+                                val pageBitmap = renderedPages.getOrNull(selectedPageIndex) ?: renderedPages.first()
+                                Image(
+                                    bitmap = pageBitmap.asImageBitmap(),
+                                    contentDescription = "PDF Page ${selectedPageIndex + 1}",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentScale = ContentScale.FillWidth
+                                )
+                            }
+                        }
+                    } else if (isGenerating) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(32.dp)
+                        ) {
+                            CircularProgressIndicator()
+                            Text("Rendering PDF pages...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(32.dp)
+                        ) {
+                            Button(onClick = onGenerateAndOpen) {
+                                Icon(Icons.Default.PictureAsPdf, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Generate PDF Preview")
+                            }
                         }
                     }
                 }
 
-                // Render Live Card
-                Box(
-                    modifier = Modifier
-                        .widthIn(min = 340.dp, max = 760.dp)
-                        .horizontalScroll(hScrollState)
-                ) {
-                    DossierDocumentPreview(
-                        profile = profile,
-                        modifier = Modifier.width(640.dp)
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+
+    // In-App Full-Screen PDF Viewer Modal Dialog
+    if (showInAppViewer && renderedPages.isNotEmpty()) {
+        Dialog(
+            onDismissRequest = { showInAppViewer = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = Color(0xF0101827)
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Modal Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF1E293B))
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "PDF Document Viewer (${renderedPages.size} Page${if (renderedPages.size > 1) "s" else ""})",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+
+                        IconButton(onClick = { showInAppViewer = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
+                    }
+
+                    // Pages container
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            renderedPages.forEachIndexed { idx, bmp ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "Page ${idx + 1}: Profile Dossier",
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                    Card(
+                                        shape = RoundedCornerShape(2.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                                    ) {
+                                        Image(
+                                            bitmap = bmp.asImageBitmap(),
+                                            contentDescription = "PDF Page ${idx + 1}",
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentScale = ContentScale.FillWidth
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Modal Bottom Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF1E293B))
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            onClick = onSharePdf,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Share PDF")
+                        }
+                    }
+                }
             }
         }
     }

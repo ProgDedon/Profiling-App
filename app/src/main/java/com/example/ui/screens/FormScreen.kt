@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,17 +25,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DocumentScanner
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
@@ -53,7 +49,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -66,7 +61,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.example.data.model.CustomField
 import com.example.data.model.DossierProfile
 import java.io.File
 
@@ -78,7 +72,6 @@ fun FormScreen(
     onPhotoSelected: (Uri) -> Unit,
     onPhotoRemoved: () -> Unit,
     onRequestCameraForPhoto: () -> Unit,
-    onPhotoDisplayNumberChange: (String) -> Unit,
     onGenderChange: (String) -> Unit,
     onLgaStateChange: (String) -> Unit,
     onPhoneNumberChange: (String) -> Unit,
@@ -92,12 +85,12 @@ fun FormScreen(
     onOccupationChange: (String) -> Unit,
     onEducationChange: (String) -> Unit,
     onAssociatesChange: (String) -> Unit,
-    onFormImageSelected: (Uri) -> Unit,
-    onFormImageRemoved: () -> Unit,
-    onRequestCameraForForm: () -> Unit,
-    onAddCustomField: (String, String) -> Unit,
-    onUpdateCustomField: (String, String, String) -> Unit,
-    onRemoveCustomField: (String) -> Unit,
+    onAddPersonalInfoField: (String, String) -> Unit,
+    onUpdatePersonalInfoField: (String, String, String) -> Unit,
+    onRemovePersonalInfoField: (String) -> Unit,
+    onAddOtherInfoField: (String, String) -> Unit,
+    onUpdateOtherInfoField: (String, String, String) -> Unit,
+    onRemoveOtherInfoField: (String) -> Unit,
     onWatermarkChange: (String) -> Unit,
     onHeaderColorChange: (String) -> Unit,
     onReset: () -> Unit,
@@ -105,24 +98,18 @@ fun FormScreen(
     onNavigateToPreview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Universal Android Gallery / Image Picker
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
+        contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
             onPhotoSelected(uri)
         }
     }
 
-    val formImagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            onFormImageSelected(uri)
-        }
-    }
-
     val scrollState = rememberScrollState()
-    val customFields = profile.getCustomFields()
+    val personalFields = profile.getPersonalInfoList()
+    val otherFields = profile.getOtherInfoList()
 
     Column(
         modifier = modifier
@@ -131,192 +118,44 @@ fun FormScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Top Action Bar: Sample, Reset, Save
+        // Action Bar: Reset, Save
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Document Builder",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                Text(
+                    text = "Profile Information",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedButton(
-                            onClick = onReset,
-                            modifier = Modifier.testTag("reset_form_button")
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Reset", fontSize = 12.sp)
-                        }
-
-                        Button(
-                            onClick = onSave,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.testTag("save_profile_button")
-                        ) {
-                            Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Save", fontSize = 12.sp)
-                        }
-                    }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.surface
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "Smart Layout: Empty boxes are omitted from the PDF so no gaps appear.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        }
-
-        // SECTION: CAPTURE OR UPLOAD FORM DOCUMENT
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Default.DocumentScanner, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Column {
-                        Text(
-                            text = "Physical Form / Document Image",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Capture a photo of your paper form with Camera or upload from device",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-
-                // Show thumbnail if form image is attached
-                val formImageModel = profile.formImageUri?.let { path ->
-                    if (path.startsWith("content://") || path.startsWith("file://")) path else File(path)
-                }
-
-                if (formImageModel != null) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFF8FAFC), RoundedCornerShape(8.dp))
-                            .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
-                            .padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(70.dp, 85.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFFE2E8F0)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            AsyncImage(
-                                model = formImageModel,
-                                contentDescription = "Captured Form Image",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Form Image Attached",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "Saved in your dossier for reference",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-
-                        IconButton(
-                            onClick = onFormImageRemoved,
-                            modifier = Modifier.testTag("remove_form_image_button")
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Remove Form Image", tint = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-
-                // Buttons: Camera Capture and Gallery Upload
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = onRequestCameraForForm,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("capture_form_camera_button"),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (profile.formImageUri != null) "Retake Form" else "Capture Form", fontSize = 12.sp)
-                    }
-
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedButton(
-                        onClick = {
-                            formImagePickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("upload_form_image_button")
+                        onClick = onReset,
+                        modifier = Modifier.testTag("reset_form_button")
                     ) {
-                        Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Upload Form", fontSize = 12.sp)
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("", fontSize = 12.sp)
+                    }
+
+                    Button(
+                        onClick = onSave,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.testTag("save_profile_button")
+                    ) {
+                        Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("", fontSize = 12.sp)
                     }
                 }
             }
@@ -352,9 +191,7 @@ fun FormScreen(
                             .background(Color(0xFFE2E8F0))
                             .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
                             .clickable {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
+                                photoPickerLauncher.launch("image/*")
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -395,33 +232,29 @@ fun FormScreen(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Camera capture button for portrait
+                        // Upload button from gallery
                         Button(
+                            onClick = { photoPickerLauncher.launch("image/*") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("pick_photo_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Upload from Gallery", fontSize = 12.sp)
+                        }
+
+                        // Camera capture button for portrait
+                        OutlinedButton(
                             onClick = onRequestCameraForPhoto,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("camera_photo_button"),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                                .testTag("camera_photo_button")
                         ) {
                             Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Take Photo", fontSize = 12.sp)
-                        }
-
-                        // Upload button from gallery
-                        OutlinedButton(
-                            onClick = {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("pick_photo_button")
-                        ) {
-                            Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Upload from Gallery", fontSize = 12.sp)
                         }
 
                         if (profile.photoUri != null) {
@@ -444,25 +277,12 @@ fun FormScreen(
                 OutlinedTextField(
                     value = profile.fullName,
                     onValueChange = onFullNameChange,
-                    label = { Text("Full Name (Header Banner & Under Photo)") },
-                    placeholder = { Text("e.g. MUBARAK ADULLAHI") },
+                    label = { Text("Full Name") },
+                    placeholder = { Text("Enter full name") },
                     leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("full_name_input"),
-                    singleLine = true
-                )
-
-                // Photo Display Phone
-                OutlinedTextField(
-                    value = profile.photoDisplayNumber,
-                    onValueChange = onPhotoDisplayNumberChange,
-                    label = { Text("Phone Number Under Photo (Optional)") },
-                    placeholder = { Text(profile.phoneNumber.ifBlank { "Leave blank to omit or use primary phone" }) },
-                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("photo_display_number_input"),
                     singleLine = true
                 )
             }
@@ -505,8 +325,8 @@ fun FormScreen(
                 OutlinedTextField(
                     value = profile.lgaState,
                     onValueChange = onLgaStateChange,
-                    label = { Text("LGA/State") },
-                    placeholder = { Text("e.g. Kontagori, Niger State") },
+                    label = { Text("LGA / State") },
+                    placeholder = { Text("e.g. Kontagora, Niger State") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("lga_state_input"),
@@ -516,20 +336,21 @@ fun FormScreen(
                 OutlinedTextField(
                     value = profile.phoneNumber,
                     onValueChange = onPhoneNumberChange,
-                    label = { Text("Phone Number") },
-                    placeholder = { Text("e.g. 07062270031") },
+                    label = { Text("Phone Number(s)") },
+                    placeholder = { Text("e.g. 07062270031, 08033334444") },
                     leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("phone_number_input"),
-                    singleLine = true
+                    singleLine = false,
+                    maxLines = 3
                 )
 
                 OutlinedTextField(
                     value = profile.alsoKnownAs,
                     onValueChange = onAlsoKnownAsChange,
-                    label = { Text("Also Known As (Alias / Nickname)") },
-                    placeholder = { Text("e.g. Sardaunan Samari") },
+                    label = { Text("Also Known As (Alias)") },
+                    placeholder = { Text("e.g. Alias or Nickname") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("also_known_as_input"),
@@ -546,6 +367,72 @@ fun FormScreen(
                         .testTag("dob_input"),
                     singleLine = true
                 )
+
+                // Additional items in Personal & Contact Information
+                if (personalFields.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        personalFields.forEachIndexed { index, field ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("personal_field_row_$index"),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = field.label,
+                                    onValueChange = { newLabel ->
+                                        onUpdatePersonalInfoField(field.id, newLabel, field.value)
+                                    },
+                                    label = { Text("Field Label") },
+                                    placeholder = { Text("e.g. State of Origin") },
+                                    modifier = Modifier.weight(0.42f),
+                                    singleLine = true
+                                )
+
+                                OutlinedTextField(
+                                    value = field.value,
+                                    onValueChange = { newVal ->
+                                        onUpdatePersonalInfoField(field.id, field.label, newVal)
+                                    },
+                                    label = { Text("Value") },
+                                    placeholder = { Text("Value") },
+                                    modifier = Modifier.weight(0.58f),
+                                    singleLine = true
+                                )
+
+                                IconButton(
+                                    onClick = { onRemovePersonalInfoField(field.id) }
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Remove Field",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Add More Information Button for Personal & Contact
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = { onAddPersonalInfoField("", "") },
+                        modifier = Modifier.testTag("add_personal_info_field_button")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add More Information", fontSize = 12.sp)
+                    }
+                }
             }
         }
 
@@ -566,17 +453,12 @@ fun FormScreen(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Text(
-                    text = "Leave any platform empty to completely remove its row from the PDF.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
 
                 OutlinedTextField(
                     value = profile.facebook,
                     onValueChange = onFacebookChange,
                     label = { Text("Facebook") },
-                    placeholder = { Text("e.g. Mubarak.abdullahi.739") },
+                    placeholder = { Text("Username or profile link") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("facebook_input"),
@@ -587,7 +469,7 @@ fun FormScreen(
                     value = profile.twitter,
                     onValueChange = onTwitterChange,
                     label = { Text("Twitter / X") },
-                    placeholder = { Text("e.g. @mubarak_ad") },
+                    placeholder = { Text("@handle") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("twitter_input"),
@@ -598,7 +480,7 @@ fun FormScreen(
                     value = profile.instagram,
                     onValueChange = onInstagramChange,
                     label = { Text("Instagram") },
-                    placeholder = { Text("e.g. mubarak_adullahi") },
+                    placeholder = { Text("@handle") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("instagram_input"),
@@ -609,7 +491,7 @@ fun FormScreen(
                     value = profile.youtube,
                     onValueChange = onYoutubeChange,
                     label = { Text("YouTube") },
-                    placeholder = { Text("e.g. @MubarakAdullahiOfficial") },
+                    placeholder = { Text("Channel handle or link") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("youtube_input"),
@@ -650,8 +532,8 @@ fun FormScreen(
                 OutlinedTextField(
                     value = profile.occupation,
                     onValueChange = onOccupationChange,
-                    label = { Text("Occupation / Roles") },
-                    placeholder = { Text("e.g. Activist/ Advocate / ADC Supporter") },
+                    label = { Text("Occupation / Role") },
+                    placeholder = { Text("e.g. Software Engineer / Consultant") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("occupation_input")
@@ -661,7 +543,7 @@ fun FormScreen(
                     value = profile.education,
                     onValueChange = onEducationChange,
                     label = { Text("Education") },
-                    placeholder = { Text("e.g. Government Secondary School Kontagora, Niger State") },
+                    placeholder = { Text("e.g. University / Institution") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("education_input")
@@ -671,106 +553,34 @@ fun FormScreen(
                     value = profile.associatesPhoneNumbers,
                     onValueChange = onAssociatesChange,
                     label = { Text("Associates Phone Numbers") },
-                    placeholder = { Text("08109595044 (Yusuf ALIYU)\n07037882149 (Musa Reskona ABUBAKAR)") },
+                    placeholder = { Text("e.g. 08100000000 (Contact Name)") },
                     minLines = 2,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("associates_input")
                 )
-            }
-        }
 
-        // SECTION 4: CUSTOM FIELDS / ADDITIONAL INFORMATION
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Additional Profile Details",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Add any custom information to include in the PDF",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = { onAddCustomField("", "") },
-                        modifier = Modifier.testTag("add_custom_field_button")
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Field", fontSize = 12.sp)
-                    }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Quick suggestions:",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf(
-                            "Party Affiliation",
-                            "NIN Number",
-                            "Marital Status",
-                            "Blood Group",
-                            "State of Origin",
-                            "Religion",
-                            "Languages",
-                            "Website",
-                            "Next of Kin"
-                        ).forEach { suggestion ->
-                            SuggestionChip(
-                                onClick = { onAddCustomField(suggestion, "") },
-                                label = { Text(suggestion, fontSize = 11.sp) }
-                            )
-                        }
-                    }
-                }
-
-                if (customFields.isNotEmpty()) {
+                // Additional items in Other Information
+                if (otherFields.isNotEmpty()) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        customFields.forEachIndexed { index, field ->
+                        otherFields.forEachIndexed { index, field ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .testTag("custom_field_row_$index"),
+                                    .testTag("other_field_row_$index"),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 OutlinedTextField(
                                     value = field.label,
                                     onValueChange = { newLabel ->
-                                        onUpdateCustomField(field.id, newLabel, field.value)
+                                        onUpdateOtherInfoField(field.id, newLabel, field.value)
                                     },
-                                    label = { Text("Title / Label") },
-                                    placeholder = { Text("e.g. Party") },
+                                    label = { Text("Field Label") },
+                                    placeholder = { Text("e.g. Party Affiliation") },
                                     modifier = Modifier.weight(0.42f),
                                     singleLine = true
                                 )
@@ -778,17 +588,16 @@ fun FormScreen(
                                 OutlinedTextField(
                                     value = field.value,
                                     onValueChange = { newVal ->
-                                        onUpdateCustomField(field.id, field.label, newVal)
+                                        onUpdateOtherInfoField(field.id, field.label, newVal)
                                     },
                                     label = { Text("Value") },
-                                    placeholder = { Text("e.g. ADC") },
+                                    placeholder = { Text("Value") },
                                     modifier = Modifier.weight(0.58f),
                                     singleLine = true
                                 )
 
                                 IconButton(
-                                    onClick = { onRemoveCustomField(field.id) },
-                                    modifier = Modifier.size(36.dp)
+                                    onClick = { onRemoveOtherInfoField(field.id) }
                                 ) {
                                     Icon(
                                         Icons.Default.Close,
@@ -798,6 +607,22 @@ fun FormScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                // Add More Information Button for Other Information
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = { onAddOtherInfoField("", "") },
+                        modifier = Modifier.testTag("add_other_info_field_button")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add More Information", fontSize = 12.sp)
                     }
                 }
             }
@@ -829,29 +654,30 @@ fun FormScreen(
                 }
 
                 OutlinedTextField(
-                    value = profile.watermarkText,
-                    onValueChange = onWatermarkChange,
-                    label = { Text("Background Watermark Text (Optional)") },
-                    placeholder = { Text("e.g. NS, CONFIDENTIAL, OFFICIAL") },
+                    value = "MMC",
+                    onValueChange = { /* permanent watermark */ },
+                    label = { Text("Background Watermark") },
+                    supportingText = { Text("Permanent watermark: MMC") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("watermark_input"),
+                    readOnly = true,
                     singleLine = true
                 )
 
                 Text(
-                    text = "Header Banner Color Scheme",
+                    text = "Header Color Scheme",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
 
                 val colorOptions = listOf(
-                    "#102E56" to "Template Navy",
-                    "#0F4C81" to "Classic Blue",
-                    "#1E3A8A" to "Royal Navy",
-                    "#0F172A" to "Slate Dark",
-                    "#14532D" to "Deep Emerald",
-                    "#7F1D1D" to "Crimson Red"
+                    "#102E56" to "Navy",
+                    "#0F4C81" to "Blue",
+                    "#1E3A8A" to "Royal",
+                    "#0F172A" to "Slate",
+                    "#14532D" to "Emerald",
+                    "#7F1D1D" to "Crimson"
                 )
 
                 Row(
@@ -892,6 +718,31 @@ fun FormScreen(
             Text("Preview & Generate PDF", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Attribution
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Phone,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Powered by Grey Communication @ 08101379193",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }

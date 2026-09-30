@@ -33,18 +33,31 @@ data class DossierProfile(
     val education: String = "",
     val associatesPhoneNumbers: String = "",
     val formImageUri: String? = null,
+    val personalInfoJson: String = "[]",
     val customFieldsJson: String = "[]",
-    val watermarkText: String = "",
+    val watermarkText: String = "MMC",
     val headerColorHex: String = "#102E56",
     val updatedAt: Long = System.currentTimeMillis()
 ) {
     val displayPhotoNumber: String
-        get() = if (photoDisplayNumber.isNotBlank()) photoDisplayNumber else phoneNumber
+        get() = if (phoneNumber.isNotBlank()) phoneNumber else photoDisplayNumber
 
-    fun getCustomFields(): List<CustomField> {
-        if (customFieldsJson.isBlank()) return emptyList()
+    fun getPersonalInfoList(): List<CustomField> = parseJsonFields(personalInfoJson)
+    fun withPersonalInfoList(fields: List<CustomField>): DossierProfile =
+        this.copy(personalInfoJson = toJsonString(fields))
+
+    fun getOtherInfoList(): List<CustomField> = parseJsonFields(customFieldsJson)
+    fun withOtherInfoList(fields: List<CustomField>): DossierProfile =
+        this.copy(customFieldsJson = toJsonString(fields))
+
+    fun getCustomFields(): List<CustomField> = parseJsonFields(customFieldsJson)
+    fun withCustomFields(fields: List<CustomField>): DossierProfile =
+        this.copy(customFieldsJson = toJsonString(fields))
+
+    private fun parseJsonFields(json: String): List<CustomField> {
+        if (json.isBlank()) return emptyList()
         return try {
-            val array = JSONArray(customFieldsJson)
+            val array = JSONArray(json)
             val list = mutableListOf<CustomField>()
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
@@ -62,7 +75,7 @@ data class DossierProfile(
         }
     }
 
-    fun withCustomFields(fields: List<CustomField>): DossierProfile {
+    private fun toJsonString(fields: List<CustomField>): String {
         val array = JSONArray()
         for (f in fields) {
             val obj = JSONObject()
@@ -71,7 +84,7 @@ data class DossierProfile(
             obj.put("value", f.value)
             array.put(obj)
         }
-        return this.copy(customFieldsJson = array.toString())
+        return array.toString()
     }
 
     companion object {

@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,6 +52,7 @@ import com.example.ui.screens.CameraCaptureScreen
 import com.example.ui.screens.FormScreen
 import com.example.ui.screens.PreviewScreen
 import com.example.ui.screens.SavedProfilesScreen
+import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 
@@ -61,8 +63,7 @@ enum class ScreenTab {
 }
 
 enum class CameraTarget {
-    PROFILE_PHOTO,
-    FORM_DOCUMENT
+    PROFILE_PHOTO
 }
 
 class MainActivity : ComponentActivity() {
@@ -71,7 +72,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                MainAppScreen()
+                var isSplashFinished by rememberSaveable { mutableStateOf(false) }
+
+                if (!isSplashFinished) {
+                    SplashScreen(
+                        onSplashFinished = { isSplashFinished = true }
+                    )
+                } else {
+                    MainAppScreen()
+                }
             }
         }
     }
@@ -102,50 +111,25 @@ fun MainAppScreen(
         }
     }
 
-    // Camera Preview Screen Active
-    if (activeCameraTarget != null) {
-        val target = activeCameraTarget!!
-        CameraCaptureScreen(
-            title = if (target == CameraTarget.PROFILE_PHOTO) "Capture Profile Photo" else "Capture Form / Document",
-            onPhotoCaptured = { file ->
-                if (target == CameraTarget.PROFILE_PHOTO) {
-                    viewModel.setPhotoFromPath(file.absolutePath)
-                } else {
-                    viewModel.setFormImageFromPath(file.absolutePath)
-                }
-                activeCameraTarget = null
-            },
-            onUploadSelected = { uri ->
-                if (target == CameraTarget.PROFILE_PHOTO) {
-                    viewModel.setPhotoFromUri(context, uri)
-                } else {
-                    viewModel.setFormImageFromUri(context, uri)
-                }
-                activeCameraTarget = null
-            },
-            onDismiss = { activeCameraTarget = null }
-        )
-        return
-    }
-
     // Back handling
-    if (currentTab != ScreenTab.FORM) {
+    if (activeCameraTarget == null && currentTab != ScreenTab.FORM) {
         BackHandler {
             currentTab = ScreenTab.FORM
         }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
             TopAppBar(
                 title = {
                     Text(
                         text = when (currentTab) {
-                            ScreenTab.FORM -> "greymmc | Profile Builder"
-                            ScreenTab.PREVIEW -> "greymmc | PDF Document"
-                            ScreenTab.PROFILES -> "greymmc | Saved Profiles"
+                            ScreenTab.FORM -> "Profile Builder"
+                            ScreenTab.PREVIEW -> "PDF Document"
+                            ScreenTab.PROFILES -> "Saved Profiles"
                         },
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -158,10 +142,10 @@ fun MainAppScreen(
                 ),
                 actions = {
                     IconButton(
-                        onClick = { activeCameraTarget = CameraTarget.FORM_DOCUMENT },
+                        onClick = { activeCameraTarget = CameraTarget.PROFILE_PHOTO },
                         modifier = Modifier.testTag("topbar_camera_button")
                     ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = "Camera Scan Form")
+                        Icon(Icons.Default.CameraAlt, contentDescription = "Capture Profile Photo")
                     }
                     IconButton(
                         onClick = {
@@ -218,7 +202,6 @@ fun MainAppScreen(
                         onPhotoSelected = { uri -> viewModel.setPhotoFromUri(context, uri) },
                         onPhotoRemoved = viewModel::removePhoto,
                         onRequestCameraForPhoto = { activeCameraTarget = CameraTarget.PROFILE_PHOTO },
-                        onPhotoDisplayNumberChange = viewModel::updatePhotoDisplayNumber,
                         onGenderChange = viewModel::updateGender,
                         onLgaStateChange = viewModel::updateLgaState,
                         onPhoneNumberChange = viewModel::updatePhoneNumber,
@@ -232,12 +215,12 @@ fun MainAppScreen(
                         onOccupationChange = viewModel::updateOccupation,
                         onEducationChange = viewModel::updateEducation,
                         onAssociatesChange = viewModel::updateAssociates,
-                        onFormImageSelected = { uri -> viewModel.setFormImageFromUri(context, uri) },
-                        onFormImageRemoved = viewModel::removeFormImage,
-                        onRequestCameraForForm = { activeCameraTarget = CameraTarget.FORM_DOCUMENT },
-                        onAddCustomField = viewModel::addCustomField,
-                        onUpdateCustomField = viewModel::updateCustomField,
-                        onRemoveCustomField = viewModel::removeCustomField,
+                        onAddPersonalInfoField = viewModel::addPersonalInfoField,
+                        onUpdatePersonalInfoField = viewModel::updatePersonalInfoField,
+                        onRemovePersonalInfoField = viewModel::removePersonalInfoField,
+                        onAddOtherInfoField = viewModel::addOtherInfoField,
+                        onUpdateOtherInfoField = viewModel::updateOtherInfoField,
+                        onRemoveOtherInfoField = viewModel::removeOtherInfoField,
                         onWatermarkChange = viewModel::updateWatermarkText,
                         onHeaderColorChange = viewModel::updateHeaderColor,
                         onReset = viewModel::resetForm,
@@ -300,4 +283,21 @@ fun MainAppScreen(
             }
         }
     }
+
+    // Camera Preview Screen Layered on Top
+    if (activeCameraTarget != null) {
+        CameraCaptureScreen(
+            title = "Capture Profile Photo",
+            onPhotoCaptured = { file ->
+                viewModel.setPhotoFromPath(file.absolutePath)
+                activeCameraTarget = null
+            },
+            onUploadSelected = { uri ->
+                viewModel.setPhotoFromUri(context, uri)
+                activeCameraTarget = null
+            },
+            onDismiss = { activeCameraTarget = null }
+        )
+    }
+}
 }

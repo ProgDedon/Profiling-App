@@ -56,7 +56,7 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
     fun updateFullName(value: String) = updateProfile { it.copy(fullName = value) }
     fun updateGender(value: String) = updateProfile { it.copy(gender = value) }
     fun updateLgaState(value: String) = updateProfile { it.copy(lgaState = value) }
-    fun updatePhoneNumber(value: String) = updateProfile { it.copy(phoneNumber = value) }
+    fun updatePhoneNumber(value: String) = updateProfile { it.copy(phoneNumber = value, photoDisplayNumber = value) }
     fun updateAlsoKnownAs(value: String) = updateProfile { it.copy(alsoKnownAs = value) }
     fun updateDateOfBirth(value: String) = updateProfile { it.copy(dateOfBirth = value) }
     fun updateFacebook(value: String) = updateProfile { it.copy(facebook = value) }
@@ -71,22 +71,40 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
     fun updateWatermarkText(value: String) = updateProfile { it.copy(watermarkText = value) }
     fun updateHeaderColor(hex: String) = updateProfile { it.copy(headerColorHex = hex) }
 
-    fun addCustomField(label: String = "", value: String = "") {
-        val currentFields = _currentProfile.value.getCustomFields().toMutableList()
-        currentFields.add(com.example.data.model.CustomField(label = label, value = value))
-        _currentProfile.value = _currentProfile.value.withCustomFields(currentFields)
+    fun addPersonalInfoField(label: String = "", value: String = "") {
+        val list = _currentProfile.value.getPersonalInfoList().toMutableList()
+        list.add(com.example.data.model.CustomField(label = label, value = value))
+        _currentProfile.value = _currentProfile.value.withPersonalInfoList(list)
     }
 
-    fun updateCustomField(id: String, label: String, value: String) {
-        val currentFields = _currentProfile.value.getCustomFields().map { field ->
+    fun updatePersonalInfoField(id: String, label: String, value: String) {
+        val list = _currentProfile.value.getPersonalInfoList().map { field ->
             if (field.id == id) field.copy(label = label, value = value) else field
         }
-        _currentProfile.value = _currentProfile.value.withCustomFields(currentFields)
+        _currentProfile.value = _currentProfile.value.withPersonalInfoList(list)
     }
 
-    fun removeCustomField(id: String) {
-        val currentFields = _currentProfile.value.getCustomFields().filter { it.id != id }
-        _currentProfile.value = _currentProfile.value.withCustomFields(currentFields)
+    fun removePersonalInfoField(id: String) {
+        val list = _currentProfile.value.getPersonalInfoList().filter { it.id != id }
+        _currentProfile.value = _currentProfile.value.withPersonalInfoList(list)
+    }
+
+    fun addOtherInfoField(label: String = "", value: String = "") {
+        val list = _currentProfile.value.getOtherInfoList().toMutableList()
+        list.add(com.example.data.model.CustomField(label = label, value = value))
+        _currentProfile.value = _currentProfile.value.withOtherInfoList(list)
+    }
+
+    fun updateOtherInfoField(id: String, label: String, value: String) {
+        val list = _currentProfile.value.getOtherInfoList().map { field ->
+            if (field.id == id) field.copy(label = label, value = value) else field
+        }
+        _currentProfile.value = _currentProfile.value.withOtherInfoList(list)
+    }
+
+    fun removeOtherInfoField(id: String) {
+        val list = _currentProfile.value.getOtherInfoList().filter { it.id != id }
+        _currentProfile.value = _currentProfile.value.withOtherInfoList(list)
     }
 
     fun setPhotoFromUri(context: Context, uri: Uri) {

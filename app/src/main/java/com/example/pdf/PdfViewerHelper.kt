@@ -1,5 +1,6 @@
 package com.example.pdf
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -19,16 +20,25 @@ import java.io.FileOutputStream
 
 object PdfViewerHelper {
 
-    fun openPdf(context: Context, pdfFile: File) {
-        try {
+    fun openPdf(context: Context, pdfFile: File): Boolean {
+        return try {
             val uri = getUriForFile(context, pdfFile)
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/pdf")
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(Intent.createChooser(intent, "Open Dossier PDF"))
+            val chooser = Intent.createChooser(intent, "Open Dossier PDF").apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
         } catch (e: Exception) {
-            Toast.makeText(context, "No PDF viewer app found: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Could not open PDF: ${e.message}", Toast.LENGTH_SHORT).show()
+            false
         }
     }
 
@@ -39,10 +49,14 @@ object PdfViewerHelper {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, title)
-                putExtra(Intent.EXTRA_TEXT, "Here is the generated Dossier PDF for $title.")
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                putExtra(Intent.EXTRA_TEXT, "Generated Dossier PDF for $title.")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Share Dossier PDF"))
+            val chooser = Intent.createChooser(intent, "Share Dossier PDF").apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
         } catch (e: Exception) {
             Toast.makeText(context, "Could not share PDF: ${e.message}", Toast.LENGTH_SHORT).show()
         }
@@ -69,7 +83,7 @@ object PdfViewerHelper {
                 }
                 val info = PrintDocumentInfo.Builder(jobName)
                     .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
-                    .setPageCount(1)
+                    .setPageCount(PrintDocumentInfo.PAGE_COUNT_UNKNOWN)
                     .build()
                 callback?.onLayoutFinished(info, true)
             }
