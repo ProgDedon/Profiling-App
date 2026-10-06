@@ -30,7 +30,12 @@ class ExampleRobolectricTest {
     val db = AppDatabase.getDatabase(context)
     val dao = db.dossierDao()
 
-    var profile = DossierProfile.createEmpty().copy(fullName = "Test User")
+    var profile = DossierProfile.createEmpty().copy(
+        fullName = "Test User",
+        tiktok = "@testuser",
+        email = "user@test.org",
+        websites = "https://user.org"
+    )
     profile = profile.withPersonalInfoList(listOf(CustomField(label = "NIN", value = "12345678901")))
     profile = profile.withOtherInfoList(listOf(CustomField(label = "Party", value = "Progressive")))
 
@@ -38,6 +43,9 @@ class ExampleRobolectricTest {
     val fetched = dao.getProfileById(newId)
     assertNotNull(fetched)
     assertEquals("Test User", fetched?.fullName)
+    assertEquals("@testuser", fetched?.tiktok)
+    assertEquals("user@test.org", fetched?.email)
+    assertEquals("https://user.org", fetched?.websites)
     assertEquals(1, fetched?.getPersonalInfoList()?.size)
     assertEquals("NIN", fetched?.getPersonalInfoList()?.first()?.label)
     assertEquals(1, fetched?.getOtherInfoList()?.size)

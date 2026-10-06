@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -58,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -80,7 +82,10 @@ fun FormScreen(
     onFacebookChange: (String) -> Unit,
     onTwitterChange: (String) -> Unit,
     onInstagramChange: (String) -> Unit,
+    onTiktokChange: (String) -> Unit,
     onYoutubeChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
+    onWebsitesChange: (String) -> Unit,
     onOtherSocialChange: (String) -> Unit,
     onOccupationChange: (String) -> Unit,
     onEducationChange: (String) -> Unit,
@@ -488,6 +493,17 @@ fun FormScreen(
                 )
 
                 OutlinedTextField(
+                    value = profile.tiktok,
+                    onValueChange = onTiktokChange,
+                    label = { Text("TikTok") },
+                    placeholder = { Text("@handle or link") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("tiktok_input"),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
                     value = profile.youtube,
                     onValueChange = onYoutubeChange,
                     label = { Text("YouTube") },
@@ -499,10 +515,34 @@ fun FormScreen(
                 )
 
                 OutlinedTextField(
+                    value = profile.email,
+                    onValueChange = onEmailChange,
+                    label = { Text("Email") },
+                    placeholder = { Text("example@domain.com") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("email_input"),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = profile.websites,
+                    onValueChange = onWebsitesChange,
+                    label = { Text("Websites") },
+                    placeholder = { Text("https://example.com") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("websites_input"),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
                     value = profile.otherSocialMedia,
                     onValueChange = onOtherSocialChange,
                     label = { Text("Other Social Media (Optional)") },
-                    placeholder = { Text("e.g. LinkedIn, TikTok, Telegram") },
+                    placeholder = { Text("e.g. LinkedIn, Telegram, Threads") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("other_social_input"),

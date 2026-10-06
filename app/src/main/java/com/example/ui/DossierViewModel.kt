@@ -62,7 +62,10 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
     fun updateFacebook(value: String) = updateProfile { it.copy(facebook = value) }
     fun updateTwitter(value: String) = updateProfile { it.copy(twitter = value) }
     fun updateInstagram(value: String) = updateProfile { it.copy(instagram = value) }
+    fun updateTiktok(value: String) = updateProfile { it.copy(tiktok = value) }
     fun updateYoutube(value: String) = updateProfile { it.copy(youtube = value) }
+    fun updateEmail(value: String) = updateProfile { it.copy(email = value) }
+    fun updateWebsites(value: String) = updateProfile { it.copy(websites = value) }
     fun updateOtherSocial(value: String) = updateProfile { it.copy(otherSocialMedia = value) }
     fun updateOccupation(value: String) = updateProfile { it.copy(occupation = value) }
     fun updateEducation(value: String) = updateProfile { it.copy(education = value) }

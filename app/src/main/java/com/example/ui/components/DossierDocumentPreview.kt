@@ -278,7 +278,16 @@ fun DossierDocumentPreview(
                             if (profile.facebook.isNotBlank()) list.add(PreviewFieldEntry("Facebook", profile.facebook))
                             if (profile.twitter.isNotBlank()) list.add(PreviewFieldEntry("Twitter / X", profile.twitter))
                             if (profile.instagram.isNotBlank()) list.add(PreviewFieldEntry("Instagram", profile.instagram))
+                            if (profile.tiktok.isNotBlank()) list.add(PreviewFieldEntry("TikTok", profile.tiktok))
                             if (profile.youtube.isNotBlank()) list.add(PreviewFieldEntry("YouTube", profile.youtube))
+                            if (profile.email.isNotBlank()) {
+                                val isMulti = profile.email.length > 28
+                                list.add(PreviewFieldEntry("Email", profile.email, isMulti))
+                            }
+                            if (profile.websites.isNotBlank()) {
+                                val isMulti = profile.websites.contains("\n") || profile.websites.length > 28
+                                list.add(PreviewFieldEntry("Websites", profile.websites, isMulti))
+                            }
                             if (profile.otherSocialMedia.isNotBlank()) list.add(PreviewFieldEntry("Other Social", profile.otherSocialMedia))
                             list
                         }

@@ -335,7 +335,16 @@ object PdfGenerator {
         if (profile.facebook.isNotBlank()) socialEntries.add(TableFieldEntry("Facebook", profile.facebook))
         if (profile.twitter.isNotBlank()) socialEntries.add(TableFieldEntry("Twitter / X", profile.twitter))
         if (profile.instagram.isNotBlank()) socialEntries.add(TableFieldEntry("Instagram", profile.instagram))
+        if (profile.tiktok.isNotBlank()) socialEntries.add(TableFieldEntry("TikTok", profile.tiktok))
         if (profile.youtube.isNotBlank()) socialEntries.add(TableFieldEntry("YouTube", profile.youtube))
+        if (profile.email.isNotBlank()) {
+            val isMulti = profile.email.length > 28
+            socialEntries.add(TableFieldEntry("Email", profile.email, isMulti))
+        }
+        if (profile.websites.isNotBlank()) {
+            val isMulti = profile.websites.contains("\n") || profile.websites.length > 28
+            socialEntries.add(TableFieldEntry("Websites", profile.websites, isMulti))
+        }
         if (profile.otherSocialMedia.isNotBlank()) socialEntries.add(TableFieldEntry("Other Social", profile.otherSocialMedia))
 
         if (socialEntries.isNotEmpty()) {
