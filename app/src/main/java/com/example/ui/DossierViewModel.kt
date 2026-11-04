@@ -3,9 +3,11 @@ package com.example.ui
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
+import com.example.data.model.CustomField
 import com.example.data.model.DossierProfile
 import com.example.data.repository.DossierRepository
 import com.example.pdf.PdfGenerator
@@ -20,8 +22,10 @@ import java.io.File
 
 class DossierViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: DossierRepository
-    val savedProfiles: StateFlow<List<DossierProfile>>
+    private val repository = DossierRepository(AppDatabase.getDatabase(application).dossierDao())
+
+    val savedProfiles: StateFlow<List<DossierProfile>> = repository.getAllProfiles()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _currentProfile = MutableStateFlow(DossierProfile.createEmpty())
     val currentProfile: StateFlow<DossierProfile> = _currentProfile.asStateFlow()
@@ -35,18 +39,19 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
 
-    init {
-        val db = AppDatabase.getDatabase(application)
-        repository = DossierRepository(db.dossierDao())
-        savedProfiles = repository.allProfiles.stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            emptyList()
-        )
-    }
-
     fun clearStatusMessage() {
         _statusMessage.value = null
+    }
+
+    fun selectProfile(profile: DossierProfile) {
+        _currentProfile.value = profile
+        _lastGeneratedPdf.value = null
+    }
+
+    fun resetForm() {
+        _currentProfile.value = DossierProfile.createEmpty()
+        _lastGeneratedPdf.value = null
+        _statusMessage.value = "Form reset to blank"
     }
 
     fun updateProfile(modifier: (DossierProfile) -> DossierProfile) {
@@ -56,6 +61,7 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
     fun updateFullName(value: String) = updateProfile { it.copy(fullName = value) }
     fun updateGender(value: String) = updateProfile { it.copy(gender = value) }
     fun updateLgaState(value: String) = updateProfile { it.copy(lgaState = value) }
+    fun updateAddress(value: String) = updateProfile { it.copy(address = value) }
     fun updatePhoneNumber(value: String) = updateProfile { it.copy(phoneNumber = value, photoDisplayNumber = value) }
     fun updateAlsoKnownAs(value: String) = updateProfile { it.copy(alsoKnownAs = value) }
     fun updateDateOfBirth(value: String) = updateProfile { it.copy(dateOfBirth = value) }
@@ -76,7 +82,7 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
 
     fun addPersonalInfoField(label: String = "", value: String = "") {
         val list = _currentProfile.value.getPersonalInfoList().toMutableList()
-        list.add(com.example.data.model.CustomField(label = label, value = value))
+        list.add(CustomField(label = label, value = value))
         _currentProfile.value = _currentProfile.value.withPersonalInfoList(list)
     }
 
@@ -94,7 +100,7 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
 
     fun addOtherInfoField(label: String = "", value: String = "") {
         val list = _currentProfile.value.getOtherInfoList().toMutableList()
-        list.add(com.example.data.model.CustomField(label = label, value = value))
+        list.add(CustomField(label = label, value = value))
         _currentProfile.value = _currentProfile.value.withOtherInfoList(list)
     }
 
@@ -144,49 +150,54 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
 
     fun setFormImageFromPath(path: String) {
         updateProfile { it.copy(formImageUri = path) }
-        _statusMessage.value = "Form image captured successfully!"
     }
 
     fun removeFormImage() {
         updateProfile { it.copy(formImageUri = null) }
     }
 
-    fun resetForm() {
-        _currentProfile.value = DossierProfile.createEmpty()
-    }
-
-    fun selectProfile(profile: DossierProfile) {
-        _currentProfile.value = profile
-    }
-
     fun saveCurrentProfile() {
         viewModelScope.launch {
-            val profile = _currentProfile.value
-            val id = repository.insertProfile(profile)
-            _currentProfile.value = profile.copy(id = id)
-            _statusMessage.value = "Profile saved successfully!"
-        }
-    }
-
-    fun deleteProfile(profile: DossierProfile) {
-        viewModelScope.launch {
-            repository.deleteProfile(profile)
-            if (_currentProfile.value.id == profile.id) {
-                resetForm()
+            try {
+                val profile = _currentProfile.value
+                val id = repository.insertProfile(profile)
+                if (profile.id == 0L) {
+                    _currentProfile.value = profile.copy(id = id)
+                }
+                _statusMessage.value = "Profile saved successfully!"
+            } catch (e: Exception) {
+                _statusMessage.value = "Failed to save profile: ${e.message}"
             }
-            _statusMessage.value = "Profile deleted"
         }
     }
 
     fun duplicateProfile(profile: DossierProfile) {
         viewModelScope.launch {
-            val copy = profile.copy(
-                id = 0,
-                fullName = "${profile.fullName} (Copy)",
-                updatedAt = System.currentTimeMillis()
-            )
-            repository.insertProfile(copy)
-            _statusMessage.value = "Profile duplicated!"
+            try {
+                val duplicate = profile.copy(
+                    id = 0,
+                    fullName = "${profile.fullName} (Copy)",
+                    updatedAt = System.currentTimeMillis()
+                )
+                val newId = repository.insertProfile(duplicate)
+                _statusMessage.value = "Profile duplicated!"
+            } catch (e: Exception) {
+                _statusMessage.value = "Failed to duplicate: ${e.message}"
+            }
+        }
+    }
+
+    fun deleteProfile(profile: DossierProfile) {
+        viewModelScope.launch {
+            try {
+                repository.deleteProfile(profile)
+                if (_currentProfile.value.id == profile.id) {
+                    resetForm()
+                }
+                _statusMessage.value = "Profile deleted!"
+            } catch (e: Exception) {
+                _statusMessage.value = "Failed to delete: ${e.message}"
+            }
         }
     }
 
@@ -199,7 +210,7 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
                 _statusMessage.value = "PDF generated successfully!"
                 onComplete?.invoke(file)
             } catch (e: Exception) {
-                _statusMessage.value = "Error generating PDF: ${e.message}"
+                _statusMessage.value = "Failed to generate PDF: ${e.message}"
             } finally {
                 _isGeneratingPdf.value = false
             }
@@ -208,24 +219,20 @@ class DossierViewModel(application: Application) : AndroidViewModel(application)
 
     fun saveToDownloads(context: Context) {
         viewModelScope.launch {
-            val file = _lastGeneratedPdf.value ?: run {
-                _isGeneratingPdf.value = true
-                val newFile = try {
-                    PdfGenerator.generatePdf(context, _currentProfile.value)
-                } catch (e: Exception) {
-                    _statusMessage.value = "Failed to generate PDF: ${e.message}"
-                    _isGeneratingPdf.value = false
-                    return@launch
-                }
-                _lastGeneratedPdf.value = newFile
-                _isGeneratingPdf.value = false
-                newFile
+            val profile = _currentProfile.value
+            val pdfFile = _lastGeneratedPdf.value ?: try {
+                PdfGenerator.generatePdf(context, profile).also { _lastGeneratedPdf.value = it }
+            } catch (e: Exception) {
+                _statusMessage.value = "Failed to create PDF: ${e.message}"
+                return@launch
             }
 
-            val displayName = "${_currentProfile.value.fullName.ifBlank { "Dossier" }}_Profile.pdf"
-            val uri = PdfGenerator.savePdfToDownloads(context, file, displayName)
-            if (uri != null) {
-                _statusMessage.value = "Saved to Downloads folder!"
+            val cleanName = profile.fullName.trim().replace("\\s+".toRegex(), "_").ifEmpty { "Profile" }
+            val fileName = "${cleanName}_Dossier_${System.currentTimeMillis()}.pdf"
+            val success = PdfGenerator.savePdfToDownloads(context, pdfFile, fileName)
+            if (success) {
+                _statusMessage.value = "Saved to Downloads: $fileName"
+                Toast.makeText(context, "Saved to Downloads folder!", Toast.LENGTH_SHORT).show()
             } else {
                 _statusMessage.value = "Failed to save to Downloads"
             }

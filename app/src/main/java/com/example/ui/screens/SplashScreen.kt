@@ -37,9 +37,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.ui.components.BookmanFontFamily
 import kotlinx.coroutines.delay
 
@@ -84,23 +89,23 @@ fun SplashScreen(
                 .fillMaxWidth()
                 .alpha(alphaAnim)
         ) {
-            // Brand Monogram Badge
+            // Brand Owl Logo Badge
             Surface(
-                shape = RoundedCornerShape(22.dp),
+                shape = RoundedCornerShape(24.dp),
                 color = Color(0x33FFFFFF),
                 border = BorderStroke(1.5.dp, Color(0x66FFFFFF)),
                 modifier = Modifier
-                    .size(96.dp)
+                    .size(100.dp)
                     .testTag("splash_logo_badge")
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "MMC",
-                        color = Color.White,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = BookmanFontFamily,
-                        letterSpacing = 2.sp
+                    Image(
+                        painter = painterResource(id = R.drawable.owl_logo_icon_1793603390711),
+                        contentDescription = "Owl Logo",
+                        modifier = Modifier
+                            .size(92.dp)
+                            .clip(RoundedCornerShape(20.dp)),
+                        contentScale = ContentScale.Crop
                     )
                 }
             }

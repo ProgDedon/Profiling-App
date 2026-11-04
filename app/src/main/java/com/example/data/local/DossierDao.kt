@@ -17,6 +17,9 @@ interface DossierDao {
     @Query("SELECT * FROM dossier_profiles WHERE id = :id LIMIT 1")
     suspend fun getProfileById(id: Long): DossierProfile?
 
+    @Query("SELECT COUNT(*) FROM dossier_profiles")
+    suspend fun getCount(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProfile(profile: DossierProfile): Long
 
@@ -28,7 +31,4 @@ interface DossierDao {
 
     @Query("DELETE FROM dossier_profiles WHERE id = :id")
     suspend fun deleteProfileById(id: Long)
-
-    @Query("SELECT COUNT(*) FROM dossier_profiles")
-    suspend fun getCount(): Int
 }

@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/ic_greymmc_owl_1790338574298"
+        android:drawable="@drawable/owl_logo_icon_1793603390711"
         android:gravity="center" />
 </layer-list>

@@ -21,6 +21,7 @@ data class DossierProfile(
     val photoDisplayNumber: String = "",
     val gender: String = "Male",
     val lgaState: String = "",
+    val address: String = "",
     val phoneNumber: String = "",
     val alsoKnownAs: String = "",
     val dateOfBirth: String = "",

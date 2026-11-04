@@ -1,0 +1,47 @@
+name: Build Windows Desktop EXE (Compose Multiplatform)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows-exe:
+    name: Package Windows Desktop EXE & MSI
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Install WiX Toolset (for MSI & EXE packaging)
+        run: |
+          dotnet tool install --global wix --version 4.0.5 || true
+          choco install wixtoolset -y || true
+
+      - name: Build Windows Executable (.exe & .msi)
+        run: |
+          cd desktop-app
+          ./gradlew packageExe packageMsi --stacktrace
+
+      - name: Locate Output Packages
+        id: locate-binaries
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path desktop-app/build/compose/binaries/main -Recurse | Select-Object FullName
+
+      - name: Upload Windows Executable Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: greymmc-windows-desktop-installer
+          path: |
+            desktop-app/build/compose/binaries/main/exe/*.exe
+            desktop-app/build/compose/binaries/main/msi/*.msi
+            desktop-app/build/compose/binaries/main/app/*

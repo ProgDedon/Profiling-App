@@ -7,14 +7,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,29 +22,44 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.model.DossierProfile
-import java.io.File
 
-val BookmanFontFamily = FontFamily(
-    Font(R.font.bookman_old_style, FontWeight.Normal),
-    Font(R.font.bookman_old_style, FontWeight.Bold)
+val BookmanFontFamily = try {
+    FontFamily(
+        Font(R.font.bookman_old_style, FontWeight.Normal),
+        Font(R.font.bookman_old_style, FontWeight.Bold),
+        Font(R.font.bookman_old_style, FontWeight.Normal, FontStyle.Italic),
+        Font(R.font.bookman_old_style, FontWeight.Bold, FontStyle.Italic)
+    )
+} catch (_: Exception) {
+    FontFamily.Serif
+}
+
+data class PreviewFieldEntry(
+    val label: String,
+    val value: String,
+    val isMultiLine: Boolean = false
 )
 
 @Composable
@@ -53,12 +67,13 @@ fun DossierDocumentPreview(
     profile: DossierProfile,
     modifier: Modifier = Modifier
 ) {
-    val headerColor = try {
-        Color(android.graphics.Color.parseColor(profile.headerColorHex))
-    } catch (_: Exception) {
-        Color(0xFF102E56)
+    val headerColor = remember(profile.headerColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(profile.headerColorHex))
+        } catch (_: Exception) {
+            Color(0xFF102E56)
+        }
     }
-
     val borderColor = Color(0xFFCBD5E1)
     val labelColor = Color(0xFF0F172A)
     val valueColor = Color(0xFF1E293B)
@@ -81,7 +96,7 @@ fun DossierDocumentPreview(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 40.dp),
+                    .padding(top = 100.dp),
                 contentAlignment = Alignment.Center
             ) {
                 val watermarkText = if (profile.watermarkText.isNotBlank() && profile.watermarkText != "by MMC") {
@@ -96,134 +111,145 @@ fun DossierDocumentPreview(
                     fontWeight = FontWeight.Bold,
                     fontStyle = FontStyle.Italic,
                     fontFamily = BookmanFontFamily,
-                    modifier = Modifier.rotate(-28f)
+                    modifier = Modifier.rotate(-24f),
+                    textAlign = TextAlign.Center
                 )
             }
 
             Column(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("document_content_column")
             ) {
-                // 1. Top Header Banner
+                // Orientation & Standard Badge
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.owl_logo_icon_1793603390711),
+                            contentDescription = "greymmc Owl Emblem",
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                        )
+                        Text(
+                            text = "A4 LANDSCAPE  •  842 × 595 PT",
+                            color = Color(0xFF64748B),
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = BookmanFontFamily,
+                            fontSize = 8.5.sp
+                        )
+                    }
+                    Text(
+                        text = "OFFICIAL DOSSIER",
+                        color = headerColor,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = BookmanFontFamily,
+                        fontSize = 8.5.sp
+                    )
+                }
+
+                // Header Banner
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(headerColor)
-                        .padding(vertical = 10.dp, horizontal = 16.dp),
+                        .padding(vertical = 8.dp, horizontal = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = profile.fullName.ifBlank { "PROFILE DOSSIER" }.uppercase(),
+                        text = profile.fullName.ifBlank { "DOSSIER PROFILE" }.uppercase(),
                         color = Color.White,
-                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = BookmanFontFamily,
-                        letterSpacing = 1.sp,
+                        fontSize = 13.sp,
                         textAlign = TextAlign.Center
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // 2. Main Content: Left Column (Photo Card) & Right Column (Tables)
+                // Two column layout: Left (Photo + Phone) & Right (Tables)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // --- LEFT PHOTO CARD ---
+                    // Left Column: Photo Box + Phone Numbers
                     Column(
-                        modifier = Modifier
-                            .weight(0.32f)
-                            .background(Color.White)
-                            .border(1.dp, borderColor)
+                        modifier = Modifier.width(115.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Photo Area
+                        // Photo Card
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(8.dp)
-                                .aspectRatio(0.82f)
-                                .background(Color(0xFFF1F5F9))
-                                .border(0.5.dp, Color(0xFFE2E8F0)),
+                                .height(145.dp)
+                                .border(1.dp, borderColor, RoundedCornerShape(2.dp))
+                                .background(Color.White),
                             contentAlignment = Alignment.Center
                         ) {
-                            val photoModel = profile.photoUri?.let { path ->
-                                if (path.startsWith("content://") || path.startsWith("file://")) path else File(path)
-                            }
-
-                            if (photoModel != null) {
+                            if (!profile.photoUri.isNullOrBlank()) {
                                 AsyncImage(
-                                    model = photoModel,
-                                    contentDescription = "Profile Photo of ${profile.fullName}",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
+                                    model = profile.photoUri,
+                                    contentDescription = "Profile Photo",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
                                 )
                             } else {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = "Default Photo",
-                                        tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    Image(
+                                        painter = painterResource(id = R.drawable.owl_logo_icon_1793603390711),
+                                        contentDescription = "Owl Emblem",
+                                        modifier = Modifier
+                                            .size(68.dp)
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop
                                     )
-                                    val initials = profile.fullName.split(" ")
-                                        .filter { it.isNotBlank() }
-                                        .take(2)
-                                        .joinToString("") { it.take(1).uppercase() }
-                                        .ifEmpty { "?" }
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = initials,
-                                        fontSize = 20.sp,
+                                        text = "OFFICIAL DOSSIER",
+                                        color = Color(0xFF64748B),
+                                        fontSize = 7.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        fontFamily = BookmanFontFamily,
-                                        color = headerColor
+                                        fontFamily = BookmanFontFamily
                                     )
                                 }
                             }
                         }
 
-                        // Name bar under photo
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(headerColor)
-                                .padding(vertical = 5.dp, horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = profile.fullName.ifBlank { "FULL NAME" }.uppercase(),
-                                color = Color.White,
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = BookmanFontFamily,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1
-                            )
-                        }
-
-                        // Phone number under photo (ONLY IF NOT BLANK!)
-                        if (profile.displayPhotoNumber.isNotBlank()) {
-                            val phoneList = profile.displayPhotoNumber.split(Regex("[\n,/]+")).map { it.trim() }.filter { it.isNotBlank() }
+                        // Phone Number under photo
+                        val rawPhone = profile.displayPhotoNumber
+                        val phoneList = rawPhone.split("\n", ",", "/").map { it.trim() }.filter { it.isNotBlank() }
+                        if (phoneList.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(6.dp))
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .border(1.dp, borderColor, RoundedCornerShape(2.dp))
                                     .background(Color.White)
-                                    .border(0.5.dp, borderColor)
                                     .padding(vertical = 4.dp, horizontal = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    phoneList.take(3).forEach { num ->
+                                    phoneList.take(3).forEach { p ->
                                         Text(
-                                            text = num,
-                                            color = Color(0xFF1E293B),
-                                            fontSize = if (phoneList.size > 1) 8.sp else 9.sp,
+                                            text = p,
+                                            color = Color(0xFF111827),
+                                            fontSize = if (phoneList.size == 1) 9.sp else 7.5.sp,
+                                            fontWeight = FontWeight.Normal,
                                             fontFamily = BookmanFontFamily,
-                                            textAlign = TextAlign.Center,
-                                            lineHeight = 11.sp,
-                                            maxLines = 1
+                                            textAlign = TextAlign.Center
                                         )
                                     }
                                 }
@@ -231,9 +257,9 @@ fun DossierDocumentPreview(
                         }
                     }
 
-                    // --- RIGHT TABLES COLUMN ---
+                    // Right Column: Personal Info, Social Media, Other Info Tables
                     Column(
-                        modifier = Modifier.weight(0.68f),
+                        modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // SECTION 1: PERSONAL & CONTACT INFORMATION
@@ -241,6 +267,10 @@ fun DossierDocumentPreview(
                             val list = mutableListOf<PreviewFieldEntry>()
                             if (profile.gender.isNotBlank()) list.add(PreviewFieldEntry("Gender", profile.gender))
                             if (profile.lgaState.isNotBlank()) list.add(PreviewFieldEntry("LGA/State", profile.lgaState))
+                            if (profile.address.isNotBlank()) {
+                                val isMulti = profile.address.contains("\n") || profile.address.length > 25
+                                list.add(PreviewFieldEntry("Address", profile.address, isMulti))
+                            }
                             if (profile.phoneNumber.isNotBlank()) {
                                 val isMulti = profile.phoneNumber.contains("\n") || profile.phoneNumber.length > 25
                                 list.add(PreviewFieldEntry("Phone Number(s)", profile.phoneNumber, isMulti))
@@ -307,16 +337,15 @@ fun DossierDocumentPreview(
                             }
                         }
 
-                        // SECTION 3: OTHER INFORMATION & CUSTOM FIELDS
+                        // SECTION 3: OTHER INFORMATION
                         val otherEntries = remember(profile) {
                             val list = mutableListOf<PreviewFieldEntry>()
-                            if (profile.occupation.isNotBlank()) list.add(PreviewFieldEntry("Occupation", profile.occupation))
+                            if (profile.occupation.isNotBlank()) list.add(PreviewFieldEntry("Occupation/ Role", profile.occupation))
                             if (profile.education.isNotBlank()) list.add(PreviewFieldEntry("Education", profile.education))
                             if (profile.associatesPhoneNumbers.isNotBlank()) {
-                                val isMulti = profile.associatesPhoneNumbers.contains("\n") || profile.associatesPhoneNumbers.length > 32
-                                list.add(PreviewFieldEntry("Associates Phone Numbers", profile.associatesPhoneNumbers, isMulti))
+                                val isMulti = profile.associatesPhoneNumbers.contains("\n") || profile.associatesPhoneNumbers.length > 30
+                                list.add(PreviewFieldEntry("Associates Phone", profile.associatesPhoneNumbers, isMulti))
                             }
-
                             for (cf in profile.getOtherInfoList()) {
                                 if (cf.label.isNotBlank() && cf.value.isNotBlank()) {
                                     val isMulti = cf.value.contains("\n") || cf.value.length > 40
@@ -342,6 +371,21 @@ fun DossierDocumentPreview(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Document Footer
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "greymmc  •  Page 1  •  A4 Landscape",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 8.sp,
+                        fontFamily = BookmanFontFamily
+                    )
+                }
             }
         }
     }
@@ -357,9 +401,8 @@ private fun SectionTable(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, borderColor)
+            .border(1.dp, borderColor, RoundedCornerShape(2.dp))
     ) {
-        // Table Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -369,59 +412,13 @@ private fun SectionTable(
             Text(
                 text = headerTitle,
                 color = Color.White,
-                fontSize = 9.sp,
+                fontSize = 8.5.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = BookmanFontFamily
             )
         }
         content()
     }
-}
-
-@Composable
-private fun RowScope.Cell(
-    text: String,
-    isLabel: Boolean,
-    weight: Float,
-    borderColor: Color,
-    labelColor: Color,
-    valueColor: Color
-) {
-    Box(
-        modifier = Modifier
-            .weight(weight)
-            .fillMaxHeight()
-            .border(0.5.dp, borderColor)
-            .background(Color.White)
-            .padding(horizontal = 4.dp, vertical = 4.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Text(
-            text = text,
-            color = if (isLabel) labelColor else valueColor,
-            fontWeight = if (isLabel) FontWeight.Bold else FontWeight.Normal,
-            fontSize = 8.5.sp,
-            fontFamily = BookmanFontFamily,
-            lineHeight = 11.sp,
-            softWrap = true
-        )
-    }
-}
-
-private data class PreviewFieldEntry(
-    val label: String,
-    val value: String,
-    val isMultiLine: Boolean = false
-) {
-    val isSmall: Boolean
-        get() {
-            if (isMultiLine || value.contains("\n")) return false
-            if (value.length > 32) return false
-            if (label.length > 28) return false
-            val words = label.split(Regex("\\s+")).filter { it.isNotEmpty() }
-            if (words.any { it.length > 14 }) return false
-            return true
-        }
 }
 
 @Composable
@@ -433,25 +430,128 @@ private fun SectionFieldsGrid(
 ) {
     var i = 0
     while (i < entries.size) {
-        val current = entries[i]
-        val next = if (i + 1 < entries.size) entries[i + 1] else null
+        val entry1 = entries[i]
+        if (entry1.isMultiLine) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(0.5.dp, borderColor)
+                    .padding(vertical = 3.dp, horizontal = 4.dp)
+            ) {
+                Text(
+                    text = entry1.label,
+                    color = labelColor,
+                    fontSize = 7.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = BookmanFontFamily,
+                    modifier = Modifier.width(65.dp)
+                )
+                Text(
+                    text = entry1.value,
+                    color = valueColor,
+                    fontSize = 7.5.sp,
+                    fontFamily = BookmanFontFamily,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            i++
+        } else if (i + 1 < entries.size && !entries[i + 1].isMultiLine) {
+            val entry2 = entries[i + 1]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+                    .border(0.5.dp, borderColor)
+            ) {
+                // Col 1
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 3.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = entry1.label,
+                        color = labelColor,
+                        fontSize = 7.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = BookmanFontFamily,
+                        modifier = Modifier.width(52.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = entry1.value,
+                        color = valueColor,
+                        fontSize = 7.5.sp,
+                        fontFamily = BookmanFontFamily,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
-        if (current.isSmall && next != null && next.isSmall) {
-            // Two small fields in a row
-            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                Cell(text = current.label, isLabel = true, weight = 0.16f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                Cell(text = current.value, isLabel = false, weight = 0.34f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                Cell(text = next.label, isLabel = true, weight = 0.16f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                Cell(text = next.value, isLabel = false, weight = 0.34f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(0.5.dp)
+                        .background(borderColor)
+                )
+
+                // Col 2
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 3.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = entry2.label,
+                        color = labelColor,
+                        fontSize = 7.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = BookmanFontFamily,
+                        modifier = Modifier.width(52.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = entry2.value,
+                        color = valueColor,
+                        fontSize = 7.5.sp,
+                        fontFamily = BookmanFontFamily,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             i += 2
         } else {
-            // Single field in a row
-            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                Cell(text = current.label, isLabel = true, weight = 0.20f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
-                Cell(text = current.value, isLabel = false, weight = 0.80f, borderColor = borderColor, labelColor = labelColor, valueColor = valueColor)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(0.5.dp, borderColor)
+                    .padding(vertical = 3.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = entry1.label,
+                    color = labelColor,
+                    fontSize = 7.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = BookmanFontFamily,
+                    modifier = Modifier.width(65.dp)
+                )
+                Text(
+                    text = entry1.value,
+                    color = valueColor,
+                    fontSize = 7.5.sp,
+                    fontFamily = BookmanFontFamily,
+                    modifier = Modifier.weight(1f)
+                )
             }
-            i += 1
+            i++
         }
     }
 }

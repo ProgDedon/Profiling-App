@@ -26,19 +26,15 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,18 +53,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.DossierProfile
-import java.io.File
 
 @Composable
 fun SavedProfilesScreen(
     profiles: List<DossierProfile>,
-    selectedProfileId: Long,
+    currentProfileId: Long,
     onSelectProfile: (DossierProfile) -> Unit,
-    onEditProfile: (DossierProfile) -> Unit,
-    onPreviewProfile: (DossierProfile) -> Unit,
     onDuplicateProfile: (DossierProfile) -> Unit,
     onDeleteProfile: (DossierProfile) -> Unit,
-    onCreateNew: () -> Unit,
+    onGeneratePdfForProfile: (DossierProfile) -> Unit,
+    onAddNewProfile: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -78,13 +72,11 @@ fun SavedProfilesScreen(
         if (searchQuery.isBlank()) {
             profiles
         } else {
-            val q = searchQuery.trim().lowercase()
             profiles.filter {
-                it.fullName.lowercase().contains(q) ||
-                        it.phoneNumber.contains(q) ||
-                        it.lgaState.lowercase().contains(q) ||
-                        it.occupation.lowercase().contains(q) ||
-                        it.alsoKnownAs.lowercase().contains(q)
+                it.fullName.contains(searchQuery, ignoreCase = true) ||
+                    it.phoneNumber.contains(searchQuery, ignoreCase = true) ||
+                    it.lgaState.contains(searchQuery, ignoreCase = true) ||
+                    it.alsoKnownAs.contains(searchQuery, ignoreCase = true)
             }
         }
     }
@@ -93,15 +85,13 @@ fun SavedProfilesScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(16.dp)
         ) {
-            // Search Input
+            // Search Bar
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("Search Profiles") },
-                placeholder = { Text("Search by name, phone, LGA, or occupation") },
+                placeholder = { Text("Search by name, phone, or state...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
                 modifier = Modifier
@@ -109,28 +99,7 @@ fun SavedProfilesScreen(
                     .testTag("search_profiles_input")
             )
 
-            // Header summary
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${filteredProfiles.size} Saved Dossier${if (filteredProfiles.size == 1) "" else "s"}",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                OutlinedButton(
-                    onClick = onCreateNew,
-                    modifier = Modifier.testTag("create_new_profile_button")
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("New Profile", fontSize = 12.sp)
-                }
-            }
+            Spacer(modifier = Modifier.height(16.dp))
 
             if (filteredProfiles.isEmpty()) {
                 Box(
@@ -139,28 +108,11 @@ fun SavedProfilesScreen(
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Text(
-                            text = if (searchQuery.isNotBlank()) "No matching profiles found" else "No saved profiles yet",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Button(
-                            onClick = onCreateNew,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                        ) {
-                            Text("Create Profile")
-                        }
-                    }
+                    Text(
+                        text = if (profiles.isEmpty()) "No saved dossiers yet.\nTap + to create a new profile." else "No profiles match your search.",
+                        color = MaterialTheme.colorScheme.outline,
+                        fontSize = 14.sp
+                    )
                 }
             } else {
                 LazyColumn(
@@ -170,49 +122,46 @@ fun SavedProfilesScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(filteredProfiles, key = { it.id }) { profile ->
-                        val isCurrent = profile.id == selectedProfileId
                         ProfileCardItem(
                             profile = profile,
-                            isSelected = isCurrent,
-                            onCardClick = { onSelectProfile(profile) },
-                            onEdit = { onEditProfile(profile) },
-                            onPreview = { onPreviewProfile(profile) },
+                            isSelected = profile.id == currentProfileId,
+                            onSelect = { onSelectProfile(profile) },
                             onDuplicate = { onDuplicateProfile(profile) },
-                            onDelete = { profileToDelete = profile }
+                            onDelete = { profileToDelete = profile },
+                            onGeneratePdf = { onGeneratePdfForProfile(profile) }
                         )
                     }
                 }
             }
         }
 
-        // Floating Action Button to create new
+        // Add Profile Floating Action Button
         FloatingActionButton(
-            onClick = onCreateNew,
+            onClick = onAddNewProfile,
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = Color.White,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(20.dp)
-                .testTag("fab_add_profile")
+                .padding(24.dp)
+                .testTag("add_profile_fab")
         ) {
-            Icon(Icons.Default.Add, contentDescription = "Add New Profile")
+            Icon(Icons.Default.Add, contentDescription = "Create New Dossier")
         }
 
         // Delete Confirmation Dialog
-        if (profileToDelete != null) {
+        profileToDelete?.let { target ->
             AlertDialog(
                 onDismissRequest = { profileToDelete = null },
-                title = { Text("Delete Profile") },
-                text = { Text("Are you sure you want to delete the profile for \"${profileToDelete?.fullName}\"? This action cannot be undone.") },
+                title = { Text("Delete Dossier") },
+                text = { Text("Are you sure you want to delete '${target.fullName.ifBlank { "Untitled Profile" }}'? This action cannot be undone.") },
                 confirmButton = {
-                    Button(
+                    TextButton(
                         onClick = {
-                            profileToDelete?.let { onDeleteProfile(it) }
+                            onDeleteProfile(target)
                             profileToDelete = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        }
                     ) {
-                        Text("Delete")
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
@@ -226,119 +175,110 @@ fun SavedProfilesScreen(
 }
 
 @Composable
-private fun ProfileCardItem(
+fun ProfileCardItem(
     profile: DossierProfile,
     isSelected: Boolean,
-    onCardClick: () -> Unit,
-    onEdit: () -> Unit,
-    onPreview: () -> Unit,
+    onSelect: () -> Unit,
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onGeneratePdf: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    ElevatedCard(
-        modifier = Modifier
+    Card(
+        modifier = modifier
             .fillMaxWidth()
-            .clickable { onCardClick() }
-            .testTag("profile_card_${profile.id}"),
+            .testTag("profile_card_${profile.id}")
+            .clickable(onClick = onSelect),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
-        )
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            // Avatar
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .border(1.dp, Color.LightGray, CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                // Avatar / Thumbnail
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFE2E8F0))
-                        .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val photoModel = profile.photoUri?.let { path ->
-                        if (path.startsWith("content://") || path.startsWith("file://")) path else File(path)
-                    }
-
-                    if (photoModel != null) {
-                        AsyncImage(
-                            model = photoModel,
-                            contentDescription = "Profile Photo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        val initials = profile.fullName.split(" ")
-                            .filter { it.isNotBlank() }
-                            .take(2)
-                            .joinToString("") { it.take(1).uppercase() }
-                            .ifEmpty { "?" }
-                        Text(
-                            text = initials,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                // Profile Info
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = profile.fullName.ifBlank { "Untitled Profile" },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                if (!profile.photoUri.isNullOrBlank()) {
+                    AsyncImage(
+                        model = profile.photoUri,
+                        contentDescription = "Avatar",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
-
-                    if (profile.phoneNumber.isNotBlank() || profile.lgaState.isNotBlank()) {
-                        Text(
-                            text = listOfNotNull(
-                                profile.phoneNumber.takeIf { it.isNotBlank() },
-                                profile.lgaState.takeIf { it.isNotBlank() }
-                            ).joinToString(" • "),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    if (profile.occupation.isNotBlank()) {
-                        Text(
-                            text = profile.occupation,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1
-                        )
-                    }
+                } else {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color.Gray,
+                        modifier = Modifier.size(28.dp)
+                    )
                 }
             }
 
-            // Quick Actions Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onPreview, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.Visibility, contentDescription = "Preview Document", tint = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Profile info
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = profile.fullName.ifBlank { "Untitled Profile" },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1
+                )
+                if (profile.phoneNumber.isNotBlank()) {
+                    Text(
+                        text = profile.phoneNumber.split("\n", ",").firstOrNull() ?: "",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit Profile", tint = MaterialTheme.colorScheme.secondary)
+                if (profile.lgaState.isNotBlank()) {
+                    Text(
+                        text = profile.lgaState,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                 }
+            }
+
+            // Quick Actions
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                IconButton(onClick = onGeneratePdf, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Default.PictureAsPdf,
+                        contentDescription = "Generate PDF",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
                 IconButton(onClick = onDuplicate, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "Duplicate Profile", tint = MaterialTheme.colorScheme.outline)
+                    Icon(
+                        Icons.Default.ContentCopy,
+                        contentDescription = "Duplicate",
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
+
                 IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete Profile", tint = MaterialTheme.colorScheme.error)
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }

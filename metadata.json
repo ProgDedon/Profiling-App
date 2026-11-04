@@ -1,6 +1,6 @@
 {
   "name": "greymmc",
-  "description": "Professional profiling and dossier management application to capture documents, profile information, and generate official PDFs.",
-  "requestFramePermissions": [],
+  "description": "Profile Dossier and PDF Document Manager",
+  "requestFramePermissions": ["android.permission.CAMERA"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
